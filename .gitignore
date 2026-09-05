@@ -1,0 +1,9 @@
+*.log
+.env*
+.env
+!.env.example
+backend/venv/
+__pycache__/
+*.pyc
+.agent/
+opencode.json
