@@ -2,14 +2,15 @@ CREATE TABLE IF NOT EXISTS profiles (
   id uuid REFERENCES auth.users PRIMARY KEY,
   full_name text,
   email text,
+  role text DEFAULT 'student',
   created_at timestamp DEFAULT now()
 );
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, email)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name', NEW.email);
+  INSERT INTO public.profiles (id, full_name, email, role)
+  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name', NEW.email, COALESCE(NEW.raw_user_meta_data->>'role', 'student'));
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

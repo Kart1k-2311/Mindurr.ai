@@ -161,46 +161,48 @@
     </main>
 
     <script>
-        // --- 1. SUPABASE CONFIG ---
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // --- 2. DYNAMIC LOGIC ---
-        async function initGateway() {
-            // Check if user is already logged in
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const statusEl = document.getElementById('auth-status');
-                const emailEl = document.getElementById('user-email');
-                statusEl.classList.remove('opacity-0');
-                emailEl.innerText = user.email;
-            }
-
-            // Fetch "Live" count from a table (e.g., 'profiles')
-            // Replace 'profiles' with whatever table tracks your users
-            const { count, error } = await supabase
-                .from('candidates') 
-                .select('*', { count: 'exact', head: true });
-            
-            if (!error && count !== null) {
-                document.getElementById('learner-count').innerText = count + 1240; // Mock base + real data
-            } else {
-                document.getElementById('learner-count').innerText = "1,200+";
-            }
-        }
-
-        // --- 3. NAVIGATION HANDLER ---
+        // --- NAVIGATION (defined first so buttons always work) ---
         function handleNavigation(type) {
-            // Redirect to your specific portal files
             if (type === 'student') {
-                window.location.href = 'student-login.html'; 
+                window.location.href = 'login_register.html?role=student';
             } else {
-                window.location.href = 'recruiter-login.html';
+                window.location.href = 'login_register.html?role=recruiter';
             }
         }
 
-        initGateway();
+        // --- SUPABASE ---
+        const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
+
+        try {
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            async function initGateway() {
+                try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        document.getElementById('auth-status').classList.remove('opacity-0');
+                        document.getElementById('user-email').innerText = user.email;
+                    }
+
+                    const { count, error } = await supabase
+                        .from('student_profiles')
+                        .select('*', { count: 'exact', head: true });
+
+                    if (!error && count !== null) {
+                        document.getElementById('learner-count').innerText = count + 1240;
+                    } else {
+                        document.getElementById('learner-count').innerText = "1,200+";
+                    }
+                } catch (e) {
+                    document.getElementById('learner-count').innerText = "1,200+";
+                }
+            }
+
+            initGateway();
+        } catch (e) {
+            document.getElementById('learner-count').innerText = "1,200+";
+        }
     </script>
 </body>
 </html>

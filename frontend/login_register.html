@@ -490,7 +490,6 @@
                     </span>
                     <span class="brand-name">Mindurr.ai</span>
                 </a>
-                <span class="eyebrow"> <span>
                 <h1>Sign In</h1>
                 <div class="social-container">
                     <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
@@ -528,85 +527,71 @@
         const signUpButton = document.getElementById("signUp");
         const signInButton = document.getElementById("signIn");
 
-        // Overlay toggle
-        if (signUpButton && signInButton && container) {
-            signUpButton.addEventListener("click", () => {
-                container.classList.add("right-panel-active");
-            });
+        // --- SUPABASE ---
+        const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            signInButton.addEventListener("click", () => {
-                container.classList.remove("right-panel-active");
-            });
-        }
+        // --- ROLE ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const role = urlParams.get("role") === "recruiter" ? "recruiter" : "student";
+
+        // --- OVERLAY TOGGLE ---
+        signUpButton.addEventListener("click", () => container.classList.add("right-panel-active"));
+        signInButton.addEventListener("click", () => container.classList.remove("right-panel-active"));
 
         // ?mode=signup -> open signup panel
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get("mode") === "signup" && container) {
+        if (urlParams.get("mode") === "signup") {
             container.classList.add("right-panel-active");
         }
 
-        // Handle LOGIN
-        const loginForm = document.getElementById("loginFormLR");
-        if (loginForm) {
-            loginForm.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const payload = {
-                    email: document.getElementById("loginEmail").value.trim(),
-                    password: document.getElementById("loginPassword").value.trim()
-                };
-
-                try {
-                    const res = await fetch("/api/login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const json = await res.json();
-                    if (res.ok) {
-                        alert("Login successful!");
-                        window.location.href = "/"; // back to home
-                    } else {
-                        alert(json.error || "Login failed");
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert("Network error");
-                }
-            });
+        // --- REDIRECT AFTER AUTH ---
+        function postAuthRedirect() {
+            if (role === "recruiter") {
+                window.location.href = "recruiter_dashboard.html";
+            } else {
+                window.location.href = "assessment.html";
+            }
         }
 
-        // Handle SIGNUP
-        const signupForm = document.getElementById("signupFormLR");
-        if (signupForm) {
-            signupForm.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const payload = {
-                    name: document.getElementById("signupName").value.trim(),
-                    email: document.getElementById("signupEmail").value.trim(),
-                    password: document.getElementById("signupPassword").value.trim()
-                };
+        // --- CHECK IF ALREADY LOGGED IN ---
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) postAuthRedirect();
+        });
 
-                try {
-                    const res = await fetch("/api/signup", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
-                    });
+        // --- LOGIN ---
+        document.getElementById("loginFormLR").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = document.getElementById("loginEmail").value.trim();
+            const password = document.getElementById("loginPassword").value.trim();
 
-                    const json = await res.json();
-                    if (res.ok) {
-                        alert("Account created!");
-                        window.location.href = "/"; // return home logged in
-                    } else {
-                        alert(json.error || "Signup failed");
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert("Network error");
-                }
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                alert(error.message);
+            } else {
+                postAuthRedirect();
+            }
+        });
+
+        // --- SIGNUP ---
+        document.getElementById("signupFormLR").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const name = document.getElementById("signupName").value.trim();
+            const email = document.getElementById("signupEmail").value.trim();
+            const password = document.getElementById("signupPassword").value.trim();
+
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { full_name: name, role: role } }
             });
-        }
+
+            if (error) {
+                alert(error.message);
+            } else {
+                postAuthRedirect();
+            }
+        });
     });
     </script>
 </body>

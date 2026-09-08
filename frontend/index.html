@@ -22,6 +22,7 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
       /* --- Solaris Design System Variables --- */
@@ -1171,13 +1172,16 @@
         </nav>
 
         <div class="navbar-actions">
-          <a href="login_register.html" class="nav-cta">
+          <a href="login_register.html" class="nav-cta" id="nav-login-btn">
             Get Started
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M5 12h14"></path>
               <path d="m12 5 7 7-7 7"></path>
             </svg>
           </a>
+          <button class="nav-cta" id="nav-logout-btn" style="display: none; background: transparent; color: var(--text-muted); border: 1px solid var(--border-light);">
+            Logout
+          </button>
           <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="4" x2="20" y1="6" y2="6"></line>
@@ -1207,7 +1211,8 @@
       </nav>
 
       <div class="mobile-menu-actions">
-        <a href="login_register.html" class="mobile-cta">Get Started</a>
+        <a href="login_register.html" class="mobile-cta" id="mobile-login-btn">Get Started</a>
+        <button class="mobile-cta" id="mobile-logout-btn" style="display: none; background: transparent; color: var(--text-muted); border: 1px solid var(--border-light);">Logout</button>
       </div>
     </div>
 
@@ -1980,6 +1985,41 @@
         // Default initial blueprint
         modules = JSON.parse(JSON.stringify(blueprints.algorithms));
         renderRoadmap();
+
+        // --- 10. AUTH STATE & LOGOUT ---
+        const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const navLoginBtn = document.getElementById('nav-login-btn');
+        const navLogoutBtn = document.getElementById('nav-logout-btn');
+        const mobileLoginBtn = document.getElementById('mobile-login-btn');
+        const mobileLogoutBtn = document.getElementById('mobile-logout-btn');
+
+        async function checkAuth() {
+          const { data: { user } } = await supabaseClient.auth.getUser();
+          if (user) {
+            navLoginBtn.style.display = 'none';
+            navLogoutBtn.style.display = 'inline-flex';
+            mobileLoginBtn.style.display = 'none';
+            mobileLogoutBtn.style.display = 'block';
+          } else {
+            navLoginBtn.style.display = 'inline-flex';
+            navLogoutBtn.style.display = 'none';
+            mobileLoginBtn.style.display = 'block';
+            mobileLogoutBtn.style.display = 'none';
+          }
+        }
+
+        async function handleLogout() {
+          await supabaseClient.auth.signOut();
+          window.location.href = 'index.html';
+        }
+
+        navLogoutBtn.addEventListener('click', handleLogout);
+        mobileLogoutBtn.addEventListener('click', handleLogout);
+
+        checkAuth();
       })();
     </script>
   </body>

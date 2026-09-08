@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Mindurr | Recruiter Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=geist:wght@100..900&family=inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "background": "#fcfae6",
+                        "primary": "#785a00",
+                        "on-surface": "#1c1917",
+                        "on-surface-variant": "#44403c",
+                        "surface": "#fefce8",
+                        "surface-container-low": "#f6f4e1",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#eab308",
+                        "on-primary-container": "#604700",
+                        "inverse-surface": "#313124",
+                        "inverse-on-surface": "#f3f2de",
+                        "outline": "#a8a29e",
+                        "outline-variant": "#d6d3d1"
+                    },
+                    fontFamily: {
+                        "display": ["geist"],
+                        "body": ["inter"]
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased min-h-screen">
+
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-md border-b border-outline-variant/30">
+        <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+            <a class="flex items-center gap-2" href="index.html">
+                <span class="font-bold text-lg tracking-tight">Mindurr</span>
+                <span class="px-2 py-0.5 rounded-full bg-inverse-surface text-inverse-on-surface text-[10px] font-bold uppercase">Recruiter</span>
+            </a>
+            <div class="flex items-center gap-4">
+                <span class="text-xs font-bold text-on-surface-variant" id="user-email"></span>
+                <button onclick="handleLogout()" class="text-xs font-bold text-on-surface-variant hover:text-primary uppercase tracking-widest">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="pt-24 pb-16 min-h-screen px-6">
+        <div class="max-w-[1200px] mx-auto">
+
+            <!-- Title -->
+            <div class="mb-8">
+                <span class="text-[11px] font-bold text-primary tracking-widest uppercase block mb-1">Recruiter Dashboard</span>
+                <h1 class="text-3xl font-extrabold tracking-tight">Candidate Benchmarks</h1>
+                <p class="text-on-surface-variant mt-1 text-sm">Review skill profiles from verified students.</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30">
+                    <span class="text-3xl font-extrabold text-primary" id="stat-total">0</span>
+                    <p class="text-xs text-on-surface-variant mt-1 font-bold uppercase tracking-widest">Total Candidates</p>
+                </div>
+                <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30">
+                    <span class="text-3xl font-extrabold text-primary" id="stat-avg">0%</span>
+                    <p class="text-xs text-on-surface-variant mt-1 font-bold uppercase tracking-widest">Avg Score</p>
+                </div>
+                <div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30">
+                    <span class="text-3xl font-extrabold text-primary" id="stat-industries">0</span>
+                    <p class="text-xs text-on-surface-variant mt-1 font-bold uppercase tracking-widest">Industries</p>
+                </div>
+            </div>
+
+            <!-- Candidates Table -->
+            <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+                <div class="p-5 border-b border-outline-variant/30">
+                    <h2 class="font-bold">All Candidates</h2>
+                </div>
+                <div id="candidates-list" class="divide-y divide-outline-variant/30">
+                    <div class="p-8 text-center text-on-surface-variant text-sm">Loading candidates...</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function init() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) { window.location.href = 'login_register.html?role=recruiter'; return; }
+            document.getElementById('user-email').textContent = user.email;
+            loadCandidates();
+        }
+
+        async function loadCandidates() {
+            const { data, error } = await supabase
+                .from('skill_profiles')
+                .select('*, student_profiles: user_id (full_name, email)')
+                .order('total_score', { ascending: false });
+
+            const list = document.getElementById('candidates-list');
+
+            if (error || !data || data.length === 0) {
+                list.innerHTML = '<div class="p-8 text-center text-on-surface-variant text-sm">No candidates found.</div>';
+                return;
+            }
+
+            // Stats
+            document.getElementById('stat-total').textContent = data.length;
+            const avgScore = Math.round(data.reduce((sum, c) => sum + c.total_score, 0) / data.length);
+            document.getElementById('stat-avg').textContent = avgScore + '%';
+            const industries = new Set(data.map(c => c.industry));
+            document.getElementById('stat-industries').textContent = industries.size;
+
+            // Table
+            list.innerHTML = data.map(c => {
+                const name = c.student_profiles?.full_name || 'Unknown';
+                const email = c.student_profiles?.email || '';
+                const industry = c.industry.replace('_', ' ');
+                const techs = c.technologies.slice(0, 3).join(', ') + (c.technologies.length > 3 ? '...' : '');
+                return '<div class="p-5 flex items-center justify-between hover:bg-surface-container-low transition-colors">' +
+                    '<div class="flex items-center gap-4">' +
+                        '<div class="w-10 h-10 rounded-full bg-primary-container/30 flex items-center justify-center">' +
+                            '<span class="material-symbols-outlined text-primary text-lg">person</span>' +
+                        '</div>' +
+                        '<div>' +
+                            '<p class="font-bold text-sm">' + name + '</p>' +
+                            '<p class="text-xs text-on-surface-variant">' + email + '</p>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex items-center gap-6">' +
+                        '<div class="text-right">' +
+                            '<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block">' + industry + '</span>' +
+                            '<span class="text-xs text-on-surface-variant">' + techs + '</span>' +
+                        '</div>' +
+                        '<div class="w-20 text-right">' +
+                            '<span class="text-lg font-extrabold text-primary">' + c.total_score + '%</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        async function handleLogout() {
+            await supabase.auth.signOut();
+            window.location.href = 'login_register.html?role=recruiter';
+        }
+
+        init();
+    </script>
+</body>
+</html>
