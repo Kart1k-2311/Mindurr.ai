@@ -149,7 +149,10 @@
             if (isSignUpMode) {
                 const { error } = await supabase.auth.signUp({ email, password });
                 if (error) alert(error.message);
-                else alert("Registration successful! Please check your email.");
+                else {
+                    alert("Registration successful! Please check your email.");
+                    window.location.href = 'assessment.html';
+                }
             } else {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) alert(error.message);
@@ -194,11 +197,21 @@
         async function checkUser() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                document.getElementById('auth-section').classList.add('hidden');
-                document.getElementById('dashboard-section').classList.remove('hidden');
-                document.getElementById('user-header-info').classList.remove('hidden');
-                document.getElementById('user-email-display').innerText = user.email;
-                fetchAndRenderTracks();
+                const { data: profile } = await supabase
+                    .from('skill_profiles')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (profile) {
+                    document.getElementById('auth-section').classList.add('hidden');
+                    document.getElementById('dashboard-section').classList.remove('hidden');
+                    document.getElementById('user-header-info').classList.remove('hidden');
+                    document.getElementById('user-email-display').innerText = user.email;
+                    fetchAndRenderTracks();
+                } else {
+                    window.location.href = 'assessment.html';
+                }
             }
         }
 

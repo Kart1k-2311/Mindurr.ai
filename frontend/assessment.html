@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Mindurr | Skill Assessment</title>
+    <link href="https://fonts.googleapis.com/css2?family=geist:wght@100..900&family=inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "background": "#fcfae6",
+                        "primary": "#785a00",
+                        "on-surface": "#1c1917",
+                        "on-surface-variant": "#44403c",
+                        "surface": "#fefce8",
+                        "surface-container-low": "#f6f4e1",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#eab308",
+                        "on-primary-container": "#604700",
+                        "secondary": "#885123",
+                        "tertiary": "#00658e",
+                        "outline": "#a8a29e",
+                        "outline-variant": "#d6d3d1",
+                        "inverse-surface": "#313124",
+                        "inverse-on-surface": "#f3f2de"
+                    },
+                    fontFamily: {
+                        "display": ["geist"],
+                        "body": ["inter"]
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        ::-webkit-scrollbar { display: none; }
+        .hidden { display: none !important; }
+        .step-card { transition: all 0.25s ease; cursor: pointer; }
+        .step-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -4px rgba(66, 32, 6, 0.09); }
+        .step-card.selected { border-color: #eab308; background-color: #fef9c3; }
+        .progress-fill { transition: width 0.4s ease; }
+        .btn-primary {
+            background-color: #eab308; color: #422006; font-weight: 700;
+            padding: 10px 28px; border-radius: 9999px; font-size: 13px;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            transition: all 0.15s ease; border: none; cursor: pointer;
+        }
+        .btn-primary:hover { background-color: #dfa806; box-shadow: 0 4px 12px rgba(66, 32, 6, 0.15); }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-secondary {
+            background-color: transparent; color: #44403c; font-weight: 700;
+            padding: 10px 28px; border-radius: 9999px; font-size: 13px;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            border: 1px solid #d6d3d1; cursor: pointer; transition: all 0.15s ease;
+        }
+        .btn-secondary:hover { background-color: #f6f4e1; }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased min-h-screen">
+
+<main class="pt-24 pb-16 min-h-screen flex flex-col items-center px-6">
+    <div class="w-full max-w-2xl">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <span class="text-[11px] font-bold text-primary tracking-widest uppercase block mb-2">Skill Profiling</span>
+            <h1 class="text-3xl font-extrabold tracking-tight" id="wizard-title">Select Your Industry</h1>
+            <p class="text-on-surface-variant mt-2 text-sm" id="wizard-subtitle">Choose the field you want to be assessed in.</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-outline-variant/30 rounded-full h-2 mb-10">
+            <div class="bg-primary-container h-2 rounded-full progress-fill" id="progress-bar" style="width: 25%"></div>
+        </div>
+
+        <!-- Steps -->
+        <div id="step-1" class="step-content">
+            <div class="grid grid-cols-2 gap-4" id="industry-grid"></div>
+        </div>
+        <div id="step-2" class="step-content hidden">
+            <div class="grid grid-cols-2 gap-3" id="language-grid"></div>
+            <p class="text-xs text-on-surface-variant mt-4 text-center">Select at least one language you know.</p>
+        </div>
+        <div id="step-3" class="step-content hidden">
+            <div class="grid grid-cols-2 gap-3" id="tech-grid"></div>
+            <p class="text-xs text-on-surface-variant mt-4 text-center">Select at least one technology you're familiar with.</p>
+        </div>
+        <div id="step-4" class="step-content hidden">
+            <div id="assessment-container"></div>
+            <div class="flex justify-between items-center mt-6">
+                <span class="text-sm text-on-surface-variant" id="question-counter">Question 1 of 25</span>
+                <span class="text-sm font-bold text-primary" id="score-live">Score: 0/0</span>
+            </div>
+        </div>
+        <div id="step-results" class="step-content hidden"></div>
+
+        <!-- Navigation -->
+        <div class="flex justify-between mt-10" id="nav-buttons">
+            <button class="btn-secondary hidden" id="prev-btn">Back</button>
+            <button class="btn-primary ml-auto" id="next-btn" disabled>Next</button>
+        </div>
+    </div>
+</main>
+
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const INDUSTRIES = {
+    frontend: {
+        label: 'Frontend', icon: 'language', desc: 'Web UIs, components, browsers',
+        languages: ['JavaScript', 'TypeScript', 'HTML/CSS'],
+        technologies: {
+            'JavaScript': ['React', 'Vue.js', 'Angular', 'Next.js', 'Svelte'],
+            'TypeScript': ['React', 'Angular', 'Next.js'],
+            'HTML/CSS': ['Tailwind CSS', 'SASS/SCSS', 'Bootstrap']
+        }
+    },
+    backend: {
+        label: 'Backend', icon: 'dns', desc: 'APIs, servers, databases',
+        languages: ['Python', 'JavaScript', 'Java', 'Go', 'Rust'],
+        technologies: {
+            'Python': ['Django', 'FastAPI', 'Flask', 'Celery'],
+            'JavaScript': ['Express.js', 'NestJS', 'Fastify'],
+            'Java': ['Spring Boot', 'Micronaut'],
+            'Go': ['Gin', 'Echo', 'Fiber'],
+            'Rust': ['Actix Web', 'Axum']
+        }
+    },
+    devops: {
+        label: 'DevOps', icon: 'cloud', desc: 'Infrastructure, CI/CD, containers',
+        languages: ['Python', 'Bash', 'Go'],
+        technologies: {
+            'Python': ['Docker', 'Kubernetes', 'Terraform', 'Ansible'],
+            'Bash': ['Docker', 'Linux Administration', 'CI/CD'],
+            'Go': ['Docker', 'Kubernetes', 'Terraform']
+        }
+    },
+    data_science: {
+        label: 'Data Science', icon: 'analytics', desc: 'ML, stats, data pipelines',
+        languages: ['Python', 'R', 'SQL'],
+        technologies: {
+            'Python': ['Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch'],
+            'R': ['ggplot2', 'dplyr', 'Shiny'],
+            'SQL': ['PostgreSQL', 'MySQL', 'BigQuery']
+        }
+    },
+    mobile: {
+        label: 'Mobile', icon: 'smartphone', desc: 'iOS, Android, cross-platform',
+        languages: ['JavaScript', 'Dart', 'Kotlin', 'Swift'],
+        technologies: {
+            'JavaScript': ['React Native', 'Expo'],
+            'Dart': ['Flutter'],
+            'Kotlin': ['Android Jetpack Compose'],
+            'Swift': ['SwiftUI', 'UIKit']
+        }
+    },
+    fullstack: {
+        label: 'Full-Stack', icon: 'terminal', desc: 'End-to-end web development',
+        languages: ['JavaScript', 'TypeScript', 'Python'],
+        technologies: {
+            'JavaScript': ['React', 'Node.js', 'Express.js', 'Next.js'],
+            'TypeScript': ['React', 'Next.js', 'NestJS'],
+            'Python': ['Django', 'FastAPI', 'Flask']
+        }
+    }
+};
+
+let state = { step: 1, industry: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0 };
+
+function showToast(message, type) {
+    const colors = { info: 'bg-inverse-surface', error: 'bg-red-700', success: 'bg-green-700' };
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 right-6 ' + (colors[type] || colors.info) + ' text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg z-50 transition-opacity';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 3000);
+}
+
+function renderIndustries() {
+    var grid = document.getElementById('industry-grid');
+    grid.innerHTML = Object.entries(INDUSTRIES).map(function(entry) {
+        var key = entry[0], ind = entry[1];
+        return '<button data-industry="' + key + '" class="step-card text-left p-5 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
+            '<span class="material-symbols-outlined text-primary text-2xl mb-2">' + ind.icon + '</span>' +
+            '<h3 class="font-bold text-on-surface">' + ind.label + '</h3>' +
+            '<p class="text-xs text-on-surface-variant mt-1">' + ind.desc + '</p>' +
+        '</button>';
+    }).join('');
+
+    grid.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            grid.querySelectorAll('button').forEach(function(b) { b.classList.remove('selected'); });
+            btn.classList.add('selected');
+            state.industry = btn.dataset.industry;
+            document.getElementById('next-btn').disabled = false;
+        });
+    });
+}
+
+function renderLanguages() {
+    var grid = document.getElementById('language-grid');
+    var langs = INDUSTRIES[state.industry].languages;
+    grid.innerHTML = langs.map(function(lang) {
+        return '<button data-lang="' + lang + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
+            '<h3 class="font-bold text-on-surface text-sm">' + lang + '</h3>' +
+        '</button>';
+    }).join('');
+
+    grid.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.classList.toggle('selected');
+            state.languages = Array.from(grid.querySelectorAll('.selected')).map(function(b) { return b.dataset.lang; });
+            document.getElementById('next-btn').disabled = state.languages.length === 0;
+        });
+    });
+}
+
+function renderTechnologies() {
+    var grid = document.getElementById('tech-grid');
+    var techMap = INDUSTRIES[state.industry].technologies;
+    var techs = new Set();
+    state.languages.forEach(function(lang) {
+        (techMap[lang] || []).forEach(function(t) { techs.add(t); });
+    });
+
+    grid.innerHTML = Array.from(techs).map(function(tech) {
+        return '<button data-tech="' + tech + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
+            '<h3 class="font-bold text-on-surface text-sm">' + tech + '</h3>' +
+        '</button>';
+    }).join('');
+
+    grid.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.classList.toggle('selected');
+            state.technologies = Array.from(grid.querySelectorAll('.selected')).map(function(b) { return b.dataset.tech; });
+            document.getElementById('next-btn').disabled = state.technologies.length === 0;
+        });
+    });
+}
+
+async function generateQuestions(technologies, industry) {
+    var techList = technologies.join(', ');
+    var prompt = 'You are a technical assessment engine. Generate exactly 30 multiple-choice questions to assess skill level for: ' + techList + '. Industry context: ' + industry + '. Return ONLY a valid JSON array, no markdown, no explanation. Each object must have: "q" (string question), "options" (array of exactly 4 strings), "answer" (0-3 index of correct answer), "technology" (which tech from the list this question covers). Mix questions evenly across all selected technologies. Vary difficulty: some beginner, some intermediate, some advanced. Make wrong answers plausible but clearly incorrect to someone who knows the topic.';
+
+    var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    if (!response.ok) throw new Error('Gemini API error: ' + response.status);
+    var data = await response.json();
+    var text = data.candidates[0].content.parts[0].text;
+
+    // Strip markdown fences if present
+    text = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    return JSON.parse(text);
+}
+
+async function buildAssessment() {
+    state.questions = [];
+    state.answers = {};
+    renderQuestion();
+
+    // Show loading state
+    var container = document.getElementById('assessment-container');
+    container.innerHTML =
+        '<div class="text-center py-16">' +
+            '<div class="inline-block w-10 h-10 border-4 border-primary-container border-t-transparent rounded-full animate-spin mb-4"></div>' +
+            '<p class="text-on-surface-variant text-sm font-bold">Generating your assessment...</p>' +
+            '<p class="text-on-surface-variant text-xs mt-1">Powered by Gemini AI</p>' +
+        '</div>';
+    document.getElementById('question-counter').textContent = 'Loading...';
+    document.getElementById('score-live').textContent = '';
+
+    try {
+        state.questions = await generateQuestions(state.technologies, state.industry);
+        if (!Array.isArray(state.questions) || state.questions.length === 0) throw new Error('Invalid response');
+    } catch (e) {
+        showToast('Failed to generate questions: ' + e.message, 'error');
+        container.innerHTML = '<div class="text-center py-12"><p class="text-on-surface-variant">Something went wrong. <button onclick="buildAssessment()" class="text-primary font-bold underline">Try again</button></p></div>';
+        return;
+    }
+
+    renderQuestion();
+}
+
+function renderQuestion() {
+    var container = document.getElementById('assessment-container');
+    var idx = Object.keys(state.answers).length;
+    var total = state.questions.length;
+
+    if (idx >= total) {
+        showResults();
+        return;
+    }
+
+    var q = state.questions[idx];
+    document.getElementById('question-counter').textContent = 'Question ' + (idx + 1) + ' of ' + total;
+    var correctCount = Object.values(state.answers).filter(function(a) { return a.correct; }).length;
+    document.getElementById('score-live').textContent = 'Score: ' + correctCount + '/' + idx;
+
+    container.innerHTML =
+        '<div class="mb-4">' +
+            '<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">' + q.technology + '</span>' +
+            '<h3 class="text-lg font-bold mt-1">' + q.q + '</h3>' +
+        '</div>' +
+        '<div class="flex flex-col gap-3">' +
+            q.options.map(function(opt, i) {
+                return '<button data-idx="' + i + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">' + opt + '</button>';
+            }).join('') +
+        '</div>';
+
+    container.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var answerIdx = parseInt(btn.dataset.idx);
+            state.answers[idx] = { answer: answerIdx, correct: answerIdx === q.answer };
+
+            container.querySelectorAll('button').forEach(function(b, i) {
+                b.disabled = true;
+                if (i === q.answer) b.classList.add('selected');
+                else if (i === answerIdx && answerIdx !== q.answer) {
+                    b.style.borderColor = '#ba1a1a';
+                    b.style.backgroundColor = '#ffdad6';
+                }
+            });
+
+            setTimeout(function() { renderQuestion(); }, 800);
+        });
+    });
+}
+
+function showResults() {
+    document.getElementById('step-4').classList.add('hidden');
+    document.getElementById('step-results').classList.remove('hidden');
+    document.getElementById('nav-buttons').classList.add('hidden');
+
+    var techScores = {};
+    var techCounts = {};
+    state.questions.forEach(function(q, idx) {
+        if (!techScores[q.technology]) { techScores[q.technology] = 0; techCounts[q.technology] = 0; }
+        techCounts[q.technology]++;
+        if (state.answers[idx] && state.answers[idx].correct) techScores[q.technology]++;
+    });
+
+    var scores = {};
+    var totalCorrect = 0, totalQuestions = 0;
+    Object.keys(techScores).forEach(function(tech) {
+        scores[tech] = Math.round((techScores[tech] / techCounts[tech]) * 100);
+        totalCorrect += techScores[tech];
+        totalQuestions += techCounts[tech];
+    });
+
+    var totalScore = Math.round((totalCorrect / totalQuestions) * 100);
+    state.scores = scores;
+    state.totalScore = totalScore;
+
+    var container = document.getElementById('step-results');
+    container.innerHTML =
+        '<div class="text-center mb-8">' +
+            '<span class="material-symbols-outlined text-primary text-5xl mb-4">emoji_events</span>' +
+            '<h2 class="text-2xl font-extrabold">Assessment Complete!</h2>' +
+            '<p class="text-on-surface-variant mt-2">Here\'s your skill profile.</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/30 mb-6">' +
+            '<div class="text-center">' +
+                '<span class="text-5xl font-extrabold text-primary">' + totalScore + '%</span>' +
+                '<p class="text-sm text-on-surface-variant mt-1">Overall Score</p>' +
+            '</div>' +
+        '</div>' +
+        '<div class="space-y-3">' +
+            Object.entries(scores).map(function(entry) {
+                var tech = entry[0], score = entry[1];
+                return '<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">' +
+                    '<span class="font-bold text-sm">' + tech + '</span>' +
+                    '<div class="flex items-center gap-3">' +
+                        '<div class="w-24 h-2 bg-outline-variant/30 rounded-full overflow-hidden">' +
+                            '<div class="h-full bg-primary-container rounded-full" style="width: ' + score + '%"></div>' +
+                        '</div>' +
+                        '<span class="text-sm font-bold text-on-surface-variant w-10 text-right">' + score + '%</span>' +
+                    '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>' +
+        '<div class="text-center mt-8">' +
+            '<button onclick="saveProfile()" class="btn-primary" id="save-btn">Save Profile & Continue</button>' +
+        '</div>';
+}
+
+async function saveProfile() {
+    var btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    var result = await supabase.auth.getUser();
+    var user = result.data && result.data.user;
+    if (!user) { window.location.href = 'Student_Login_code.html'; return; }
+
+    var error = (await supabase.from('skill_profiles').upsert({
+        user_id: user.id,
+        industry: state.industry,
+        languages: state.languages,
+        technologies: state.technologies,
+        scores: state.scores,
+        total_score: state.totalScore
+    }, { onConflict: 'user_id' })).error;
+
+    if (error) {
+        showToast('Error saving profile: ' + error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save Profile & Continue';
+    } else {
+        showToast('Profile saved!', 'success');
+        setTimeout(function() { window.location.href = 'index.html'; }, 1000);
+    }
+}
+
+function goToStep(step) {
+    document.querySelectorAll('.step-content').forEach(function(el) { el.classList.add('hidden'); });
+    document.getElementById('step-' + step).classList.remove('hidden');
+
+    var titles = {
+        1: ['Select Your Industry', 'Choose the field you want to be assessed in.'],
+        2: ['Select Languages', 'Pick the programming languages you know.'],
+        3: ['Select Technologies', 'Choose frameworks and tools you\'re familiar with.'],
+        4: ['Take Assessment', 'Answer questions about your selected technologies.']
+    };
+
+    document.getElementById('wizard-title').textContent = titles[step][0];
+    document.getElementById('wizard-subtitle').textContent = titles[step][1];
+    document.getElementById('progress-bar').style.width = (step * 25) + '%';
+
+    document.getElementById('prev-btn').classList.toggle('hidden', step === 1);
+    document.getElementById('next-btn').disabled = true;
+
+    var nextBtn = document.getElementById('next-btn');
+    if (step === 3) nextBtn.textContent = 'Start Assessment';
+    else if (step === 4) { document.getElementById('nav-buttons').classList.add('hidden'); }
+    else { nextBtn.textContent = 'Next'; document.getElementById('nav-buttons').classList.remove('hidden'); }
+}
+
+document.getElementById('next-btn').addEventListener('click', function() {
+    if (state.step === 1 && !state.industry) { showToast('Please select an industry', 'error'); return; }
+    if (state.step === 2 && state.languages.length === 0) { showToast('Please select at least one language', 'error'); return; }
+    if (state.step === 3 && state.technologies.length === 0) { showToast('Please select at least one technology', 'error'); return; }
+
+    if (state.step === 1) { state.step = 2; renderLanguages(); }
+    else if (state.step === 2) { state.step = 3; renderTechnologies(); }
+    else if (state.step === 3) { state.step = 4; buildAssessment(); }
+    goToStep(state.step);
+});
+
+document.getElementById('prev-btn').addEventListener('click', function() {
+    state.step--;
+    goToStep(state.step);
+    if (state.step === 1) document.getElementById('next-btn').disabled = !state.industry;
+    else if (state.step === 2) document.getElementById('next-btn').disabled = state.languages.length === 0;
+    else if (state.step === 3) document.getElementById('next-btn').disabled = state.technologies.length === 0;
+});
+
+async function init() {
+    if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
+        showToast('Set your Supabase + Gemini API keys in assessment.html', 'error');
+        return;
+    }
+    var result = await supabase.auth.getUser();
+    var user = result.data && result.data.user;
+    if (!user) { window.location.href = 'Student_Login_code.html'; return; }
+
+    var profile = (await supabase.from('skill_profiles').select('id').eq('user_id', user.id).single()).data;
+    if (profile) {
+        showToast('You already have a skill profile', 'info');
+    }
+}
+
+renderIndustries();
+init();
+</script>
+</body>
+</html>
