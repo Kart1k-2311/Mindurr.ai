@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 .agent/
 opencode.json
+Master_prompt_compiler.txt
+.serena
