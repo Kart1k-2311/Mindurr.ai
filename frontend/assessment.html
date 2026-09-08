@@ -110,6 +110,7 @@
 const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const API_BASE_URL = (window.MINDURR_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 const INDUSTRIES = {
     frontend: {
@@ -171,7 +172,7 @@ const INDUSTRIES = {
     }
 };
 
-let state = { step: 1, industry: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0 };
+let state = { step: 1, industry: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0, assessmentId: null, result: null };
 
 function showToast(message, type) {
     const colors = { info: 'bg-inverse-surface', error: 'bg-red-700', success: 'bg-green-700' };
@@ -180,6 +181,51 @@ function showToast(message, type) {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 3000);
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, function(character) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character];
+    });
+}
+
+async function getAccessToken() {
+    var result = await supabase.auth.getSession();
+    var session = result.data && result.data.session;
+    if (result.error || !session || !session.access_token) {
+        showToast('Your session has expired. Please sign in again.', 'error');
+        window.location.href = 'login_register.html?role=student';
+        throw new Error('Authentication required');
+    }
+    return session.access_token;
+}
+
+async function apiFetch(path, options) {
+    options = options || {};
+    var token = await getAccessToken();
+    var headers = Object.assign({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+    }, options.headers || {});
+    var response;
+
+    try {
+        response = await fetch(API_BASE_URL + path, Object.assign({}, options, { headers: headers }));
+    } catch (error) {
+        throw new Error('Unable to reach the assessment service. Check that the backend is running.');
+    }
+
+    var data = await response.json().catch(function() { return {}; });
+    if (response.status === 401) {
+        showToast('Your session has expired. Please sign in again.', 'error');
+        window.location.href = 'login_register.html?role=student';
+        throw new Error('Authentication required');
+    }
+    if (!response.ok) {
+        var detail = data.detail || data.error || 'The request failed (' + response.status + ')';
+        throw new Error(typeof detail === 'string' ? detail : 'The request failed.');
+    }
+    return data;
 }
 
 function renderIndustries() {
@@ -244,30 +290,29 @@ function renderTechnologies() {
     });
 }
 
-async function generateQuestions(technologies, industry) {
-    const supabaseUrl = SUPABASE_URL.replace(/\/$/, '');
-    const response = await fetch(supabaseUrl + '/functions/v1/generate-questions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + SUPABASE_KEY
-        },
-        body: JSON.stringify({ technologies: technologies, industry: industry })
-    });
-
-    if (!response.ok) {
-        const err = await response.json().catch(function() { return {}; });
-        throw new Error(err.error || 'Edge Function error: ' + response.status);
+async function loadAssessmentQuestions() {
+    if (!state.assessmentId) {
+        var started = await apiFetch('/api/assessments', {
+            method: 'POST',
+            body: JSON.stringify({
+                industry: state.industry,
+                languages: state.languages,
+                technologies: state.technologies
+            })
+        });
+        state.assessmentId = started.assessment_id;
     }
 
-    var data = await response.json();
+    var data = await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/questions');
     return data.questions;
 }
 
 async function buildAssessment() {
     state.questions = [];
     state.answers = {};
-    renderQuestion();
+    state.result = null;
+    document.getElementById('step-4').classList.remove('hidden');
+    document.getElementById('step-results').classList.add('hidden');
 
     // Show loading state
     var container = document.getElementById('assessment-container');
@@ -281,7 +326,7 @@ async function buildAssessment() {
     document.getElementById('score-live').textContent = '';
 
     try {
-        state.questions = await generateQuestions(state.technologies, state.industry);
+        state.questions = await loadAssessmentQuestions();
         if (!Array.isArray(state.questions) || state.questions.length === 0) throw new Error('Invalid response');
     } catch (e) {
         showToast('Failed to generate questions: ' + e.message, 'error');
@@ -304,32 +349,28 @@ function renderQuestion() {
 
     var q = state.questions[idx];
     document.getElementById('question-counter').textContent = 'Question ' + (idx + 1) + ' of ' + total;
-    var correctCount = Object.values(state.answers).filter(function(a) { return a.correct; }).length;
-    document.getElementById('score-live').textContent = 'Score: ' + correctCount + '/' + idx;
+    document.getElementById('score-live').textContent = 'Score: --';
 
     container.innerHTML =
         '<div class="mb-4">' +
-            '<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">' + q.technology + '</span>' +
-            '<h3 class="text-lg font-bold mt-1">' + q.q + '</h3>' +
+            '<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">' + escapeHtml(q.technology) + '</span>' +
+            '<h3 class="text-lg font-bold mt-1">' + escapeHtml(q.q) + '</h3>' +
         '</div>' +
         '<div class="flex flex-col gap-3">' +
             q.options.map(function(opt, i) {
-                return '<button data-idx="' + i + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">' + opt + '</button>';
+                return '<button data-idx="' + i + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">' + escapeHtml(opt) + '</button>';
             }).join('') +
         '</div>';
 
     container.querySelectorAll('button').forEach(function(btn) {
         btn.addEventListener('click', function() {
+            if (state.answers[idx]) return;
             var answerIdx = parseInt(btn.dataset.idx);
-            state.answers[idx] = { answer: answerIdx, correct: answerIdx === q.answer };
+            state.answers[idx] = { question_id: q.id, answer: answerIdx };
 
-            container.querySelectorAll('button').forEach(function(b, i) {
+            container.querySelectorAll('button').forEach(function(b) {
                 b.disabled = true;
-                if (i === q.answer) b.classList.add('selected');
-                else if (i === answerIdx && answerIdx !== q.answer) {
-                    b.style.borderColor = '#ba1a1a';
-                    b.style.backgroundColor = '#ffdad6';
-                }
+                if (parseInt(b.dataset.idx) === answerIdx) b.classList.add('selected');
             });
 
             setTimeout(function() { renderQuestion(); }, 800);
@@ -342,23 +383,28 @@ function showResults() {
     document.getElementById('step-results').classList.remove('hidden');
     document.getElementById('nav-buttons').classList.add('hidden');
 
-    var techScores = {};
-    var techCounts = {};
-    state.questions.forEach(function(q, idx) {
-        if (!techScores[q.technology]) { techScores[q.technology] = 0; techCounts[q.technology] = 0; }
-        techCounts[q.technology]++;
-        if (state.answers[idx] && state.answers[idx].correct) techScores[q.technology]++;
-    });
+    var container = document.getElementById('step-results');
+    container.innerHTML =
+        '<div class="text-center mb-8">' +
+            '<span class="material-symbols-outlined text-primary text-5xl mb-4">task_alt</span>' +
+            '<h2 class="text-2xl font-extrabold">Your Answers Are Ready</h2>' +
+            '<p class="text-on-surface-variant mt-2">Submit your answers to calculate your verified result.</p>' +
+        '</div>' +
+        '<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/30 mb-6">' +
+            '<div class="text-center">' +
+                '<span class="text-3xl font-extrabold text-primary">' + state.questions.length + ' questions</span>' +
+                '<p class="text-sm text-on-surface-variant mt-1">Ready for server-side scoring</p>' +
+            '</div>' +
+        '</div>' +
+        '<div class="text-center mt-8">' +
+            '<button onclick="submitAssessment()" class="btn-primary" id="save-btn">Save Profile & Continue</button>' +
+        '</div>';
+}
 
-    var scores = {};
-    var totalCorrect = 0, totalQuestions = 0;
-    Object.keys(techScores).forEach(function(tech) {
-        scores[tech] = Math.round((techScores[tech] / techCounts[tech]) * 100);
-        totalCorrect += techScores[tech];
-        totalQuestions += techCounts[tech];
-    });
-
-    var totalScore = Math.round((totalCorrect / totalQuestions) * 100);
+function renderResults(data) {
+    var result = data.result || {};
+    var scores = result.technology_scores || {};
+    var totalScore = Math.round(Number(data.score !== undefined ? data.score : result.overall_score || 0));
     state.scores = scores;
     state.totalScore = totalScore;
 
@@ -377,9 +423,9 @@ function showResults() {
         '</div>' +
         '<div class="space-y-3">' +
             Object.entries(scores).map(function(entry) {
-                var tech = entry[0], score = entry[1];
+                var tech = entry[0], score = Number(entry[1]);
                 return '<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">' +
-                    '<span class="font-bold text-sm">' + tech + '</span>' +
+                    '<span class="font-bold text-sm">' + escapeHtml(tech) + '</span>' +
                     '<div class="flex items-center gap-3">' +
                         '<div class="w-24 h-2 bg-outline-variant/30 rounded-full overflow-hidden">' +
                             '<div class="h-full bg-primary-container rounded-full" style="width: ' + score + '%"></div>' +
@@ -390,36 +436,36 @@ function showResults() {
             }).join('') +
         '</div>' +
         '<div class="text-center mt-8">' +
-            '<button onclick="saveProfile()" class="btn-primary" id="save-btn">Save Profile & Continue</button>' +
+            '<button onclick="continueAfterSave()" class="btn-primary" id="save-btn">Save Profile & Continue</button>' +
         '</div>';
 }
 
-async function saveProfile() {
+async function submitAssessment() {
     var btn = document.getElementById('save-btn');
+    if (!btn || !state.assessmentId) return;
     btn.disabled = true;
-    btn.textContent = 'Saving...';
+    btn.textContent = 'Submitting...';
 
-    var result = await supabase.auth.getUser();
-    var user = result.data && result.data.user;
-    if (!user) { window.location.href = 'login_register.html?role=student'; return; }
-
-    var error = (await supabase.from('skill_profiles').upsert({
-        user_id: user.id,
-        industry: state.industry,
-        languages: state.languages,
-        technologies: state.technologies,
-        scores: state.scores,
-        total_score: state.totalScore
-    }, { onConflict: 'user_id' })).error;
-
-    if (error) {
-        showToast('Error saving profile: ' + error.message, 'error');
+    try {
+        var answers = state.questions.map(function(question, index) {
+            return { question_id: question.id, answer: state.answers[index].answer };
+        });
+        await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/answers', {
+            method: 'POST',
+            body: JSON.stringify({ answers: answers })
+        });
+        state.result = await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/result');
+        renderResults(state.result);
+        showToast('Assessment saved!', 'success');
+    } catch (error) {
+        showToast('Failed to submit answers: ' + error.message, 'error');
         btn.disabled = false;
         btn.textContent = 'Save Profile & Continue';
-    } else {
-        showToast('Profile saved!', 'success');
-        setTimeout(function() { window.location.href = 'index.html'; }, 1000);
     }
+}
+
+function continueAfterSave() {
+    window.location.href = 'index.html';
 }
 
 function goToStep(step) {
@@ -453,7 +499,7 @@ document.getElementById('next-btn').addEventListener('click', function() {
 
     if (state.step === 1) { state.step = 2; renderLanguages(); }
     else if (state.step === 2) { state.step = 3; renderTechnologies(); }
-    else if (state.step === 3) { state.step = 4; buildAssessment(); }
+    else if (state.step === 3) { state.step = 4; state.assessmentId = null; buildAssessment(); }
     goToStep(state.step);
 });
 
@@ -470,13 +516,13 @@ async function init() {
         showToast('Set your Supabase credentials in assessment.html', 'error');
         return;
     }
-    var result = await supabase.auth.getUser();
-    var user = result.data && result.data.user;
-    if (!user) { window.location.href = 'login_register.html?role=student'; return; }
-
-    var profile = (await supabase.from('skill_profiles').select('id').eq('user_id', user.id).single()).data;
-    if (profile) {
-        showToast('You already have a skill profile', 'info');
+    try {
+        var result = await supabase.auth.getUser();
+        var user = result.data && result.data.user;
+        if (result.error || !user) { window.location.href = 'login_register.html?role=student'; return; }
+    } catch (error) {
+        showToast('Unable to verify your session. Please sign in again.', 'error');
+        setTimeout(function() { window.location.href = 'login_register.html?role=student'; }, 800);
     }
 }
 
