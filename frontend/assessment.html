@@ -59,6 +59,7 @@
             border: 1px solid #d6d3d1; cursor: pointer; transition: all 0.15s ease;
         }
         .btn-secondary:hover { background-color: #f6f4e1; }
+        .config-message { grid-column: 1 / -1; }
     </style>
 </head>
 <body class="bg-background font-body text-on-surface antialiased min-h-screen">
@@ -80,6 +81,10 @@
         <!-- Steps -->
         <div id="step-1" class="step-content">
             <div class="grid grid-cols-2 gap-4" id="industry-grid"></div>
+            <div class="hidden mt-6" id="goal-section">
+                <p class="text-xs font-bold text-primary uppercase tracking-widest mb-3 text-center">Choose Your Assessment Goal</p>
+                <div class="grid grid-cols-1 gap-3" id="goal-grid"></div>
+            </div>
         </div>
         <div id="step-2" class="step-content hidden">
             <div class="grid grid-cols-2 gap-3" id="language-grid"></div>
@@ -109,12 +114,13 @@
 <script>
 const SUPABASE_URL = 'https://xrxstghlyyergkuvqlaw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyeHN0Z2hseXllcmdrdXZxbGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4Njg1NTUsImV4cCI6MjEwNDQ0NDU1NX0.4bRp8FFRqPoM-Sos8InAdUsXEcQFnPJJB87_6OunPsQ';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const API_BASE_URL = (window.MINDURR_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+let supabaseClient = null;
 
 const INDUSTRIES = {
     frontend: {
         label: 'Frontend', icon: 'language', desc: 'Web UIs, components, browsers',
+        goals: ['Build responsive user interfaces', 'Create reusable components', 'Optimize web experiences'],
         languages: ['JavaScript', 'TypeScript', 'HTML/CSS'],
         technologies: {
             'JavaScript': ['React', 'Vue.js', 'Angular', 'Next.js', 'Svelte'],
@@ -124,6 +130,7 @@ const INDUSTRIES = {
     },
     backend: {
         label: 'Backend', icon: 'dns', desc: 'APIs, servers, databases',
+        goals: ['Build production APIs', 'Design reliable data services', 'Scale backend systems'],
         languages: ['Python', 'JavaScript', 'Java', 'Go', 'Rust'],
         technologies: {
             'Python': ['Django', 'FastAPI', 'Flask', 'Celery'],
@@ -135,6 +142,7 @@ const INDUSTRIES = {
     },
     devops: {
         label: 'DevOps', icon: 'cloud', desc: 'Infrastructure, CI/CD, containers',
+        goals: ['Automate deployments', 'Manage cloud infrastructure', 'Improve system reliability'],
         languages: ['Python', 'Bash', 'Go'],
         technologies: {
             'Python': ['Docker', 'Kubernetes', 'Terraform', 'Ansible'],
@@ -144,6 +152,7 @@ const INDUSTRIES = {
     },
     data_science: {
         label: 'Data Science', icon: 'analytics', desc: 'ML, stats, data pipelines',
+        goals: ['Analyze real-world datasets', 'Build predictive models', 'Deploy machine learning workflows'],
         languages: ['Python', 'R', 'SQL'],
         technologies: {
             'Python': ['Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch'],
@@ -153,6 +162,7 @@ const INDUSTRIES = {
     },
     mobile: {
         label: 'Mobile', icon: 'smartphone', desc: 'iOS, Android, cross-platform',
+        goals: ['Build cross-platform apps', 'Create native mobile interfaces', 'Ship mobile experiences'],
         languages: ['JavaScript', 'Dart', 'Kotlin', 'Swift'],
         technologies: {
             'JavaScript': ['React Native', 'Expo'],
@@ -163,6 +173,7 @@ const INDUSTRIES = {
     },
     fullstack: {
         label: 'Full-Stack', icon: 'terminal', desc: 'End-to-end web development',
+        goals: ['Build end-to-end products', 'Integrate frontend and backend', 'Deliver production web apps'],
         languages: ['JavaScript', 'TypeScript', 'Python'],
         technologies: {
             'JavaScript': ['React', 'Node.js', 'Express.js', 'Next.js'],
@@ -172,7 +183,7 @@ const INDUSTRIES = {
     }
 };
 
-let state = { step: 1, industry: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0, assessmentId: null, result: null };
+let state = { step: 1, industry: null, goal: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0, assessmentId: null, result: null };
 
 function showToast(message, type) {
     const colors = { info: 'bg-inverse-surface', error: 'bg-red-700', success: 'bg-green-700' };
@@ -190,7 +201,7 @@ function escapeHtml(value) {
 }
 
 async function getAccessToken() {
-    var result = await supabase.auth.getSession();
+    var result = await getSupabaseClient().auth.getSession();
     var session = result.data && result.data.session;
     if (result.error || !session || !session.access_token) {
         showToast('Your session has expired. Please sign in again.', 'error');
@@ -198,6 +209,16 @@ async function getAccessToken() {
         throw new Error('Authentication required');
     }
     return session.access_token;
+}
+
+function getSupabaseClient() {
+    if (!supabaseClient) {
+        if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+            throw new Error('Authentication library failed to load.');
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+    return supabaseClient;
 }
 
 async function apiFetch(path, options) {
@@ -230,7 +251,13 @@ async function apiFetch(path, options) {
 
 function renderIndustries() {
     var grid = document.getElementById('industry-grid');
-    grid.innerHTML = Object.entries(INDUSTRIES).map(function(entry) {
+    var entries = Object.entries(INDUSTRIES);
+    if (!grid || entries.length === 0) {
+        if (grid) grid.innerHTML = '<p class="config-message text-center text-on-surface-variant text-sm py-8">Unable to load industries. Please try again.</p>';
+        return;
+    }
+
+    grid.innerHTML = entries.map(function(entry) {
         var key = entry[0], ind = entry[1];
         return '<button data-industry="' + key + '" class="step-card text-left p-5 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
             '<span class="material-symbols-outlined text-primary text-2xl mb-2">' + ind.icon + '</span>' +
@@ -244,6 +271,34 @@ function renderIndustries() {
             grid.querySelectorAll('button').forEach(function(b) { b.classList.remove('selected'); });
             btn.classList.add('selected');
             state.industry = btn.dataset.industry;
+            state.goal = null;
+            renderGoals();
+            document.getElementById('next-btn').disabled = true;
+        });
+    });
+}
+
+function renderGoals() {
+    var section = document.getElementById('goal-section');
+    var grid = document.getElementById('goal-grid');
+    var goals = state.industry && INDUSTRIES[state.industry] ? INDUSTRIES[state.industry].goals || [] : [];
+    if (!section || !grid) return;
+
+    section.classList.remove('hidden');
+    if (goals.length === 0) {
+        grid.innerHTML = '<p class="config-message text-center text-on-surface-variant text-sm py-4">No assessment goals are available for this industry.</p>';
+        document.getElementById('next-btn').disabled = true;
+        return;
+    }
+
+    grid.innerHTML = goals.map(function(goal) {
+        return '<button data-goal="' + escapeHtml(goal) + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">' + escapeHtml(goal) + '</button>';
+    }).join('');
+    grid.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            grid.querySelectorAll('button').forEach(function(b) { b.classList.remove('selected'); });
+            btn.classList.add('selected');
+            state.goal = btn.dataset.goal;
             document.getElementById('next-btn').disabled = false;
         });
     });
@@ -296,6 +351,7 @@ async function loadAssessmentQuestions() {
             method: 'POST',
             body: JSON.stringify({
                 industry: state.industry,
+                goal: state.goal,
                 languages: state.languages,
                 technologies: state.technologies
             })
@@ -494,6 +550,7 @@ function goToStep(step) {
 
 document.getElementById('next-btn').addEventListener('click', function() {
     if (state.step === 1 && !state.industry) { showToast('Please select an industry', 'error'); return; }
+    if (state.step === 1 && !state.goal) { showToast('Please select an assessment goal', 'error'); return; }
     if (state.step === 2 && state.languages.length === 0) { showToast('Please select at least one language', 'error'); return; }
     if (state.step === 3 && state.technologies.length === 0) { showToast('Please select at least one technology', 'error'); return; }
 
@@ -517,7 +574,7 @@ async function init() {
         return;
     }
     try {
-        var result = await supabase.auth.getUser();
+        var result = await getSupabaseClient().auth.getUser();
         var user = result.data && result.data.user;
         if (result.error || !user) { window.location.href = 'login_register.html?role=student'; return; }
     } catch (error) {
@@ -526,7 +583,13 @@ async function init() {
     }
 }
 
-renderIndustries();
+try {
+    renderIndustries();
+} catch (error) {
+    var industryGrid = document.getElementById('industry-grid');
+    if (industryGrid) industryGrid.innerHTML = '<p class="config-message text-center text-on-surface-variant text-sm py-8">Unable to load industries. Please try again.</p>';
+    showToast('Unable to load assessment options.', 'error');
+}
 init();
 </script>
 </body>

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
     "frontend": {
+        "goals": ["Build responsive user interfaces", "Create reusable components", "Optimize web experiences"],
         "languages": ["JavaScript", "TypeScript", "HTML/CSS"],
         "technologies": {
             "JavaScript": ["React", "Vue.js", "Angular", "Next.js", "Svelte"],
@@ -31,6 +32,7 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "backend": {
+        "goals": ["Build production APIs", "Design reliable data services", "Scale backend systems"],
         "languages": ["Python", "JavaScript", "Java", "Go", "Rust"],
         "technologies": {
             "Python": ["Django", "FastAPI", "Flask", "Celery"],
@@ -41,6 +43,7 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "devops": {
+        "goals": ["Automate deployments", "Manage cloud infrastructure", "Improve system reliability"],
         "languages": ["Python", "Bash", "Go"],
         "technologies": {
             "Python": ["Docker", "Kubernetes", "Terraform", "Ansible"],
@@ -49,6 +52,7 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "data_science": {
+        "goals": ["Analyze real-world datasets", "Build predictive models", "Deploy machine learning workflows"],
         "languages": ["Python", "R", "SQL"],
         "technologies": {
             "Python": ["Pandas", "NumPy", "Scikit-learn", "TensorFlow", "PyTorch"],
@@ -57,6 +61,7 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "mobile": {
+        "goals": ["Build cross-platform apps", "Create native mobile interfaces", "Ship mobile experiences"],
         "languages": ["JavaScript", "Dart", "Kotlin", "Swift"],
         "technologies": {
             "JavaScript": ["React Native", "Expo"],
@@ -66,6 +71,7 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "fullstack": {
+        "goals": ["Build end-to-end products", "Integrate frontend and backend", "Deliver production web apps"],
         "languages": ["JavaScript", "TypeScript", "Python"],
         "technologies": {
             "JavaScript": ["React", "Node.js", "Express.js", "Next.js"],
@@ -80,6 +86,7 @@ class AssessmentStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     industry: str = Field(min_length=1, max_length=50)
+    goal: str | None = Field(default=None, max_length=120)
     languages: list[str] = Field(min_length=1, max_length=10)
     technologies: list[str] = Field(min_length=1, max_length=20)
 
@@ -260,6 +267,9 @@ def _validate_selections(payload: AssessmentStartRequest) -> None:
     if not definition:
         raise HTTPException(status_code=422, detail="Unsupported industry")
 
+    if payload.goal and payload.goal not in definition["goals"]:
+        raise HTTPException(status_code=422, detail="Assessment goal is not valid for the selected industry")
+
     allowed_languages = set(definition["languages"])
     invalid_languages = sorted(set(payload.languages) - allowed_languages)
     if invalid_languages:
@@ -285,6 +295,8 @@ def _normalise_questions(raw_questions: Any, technologies: list[str]) -> list[di
     if not isinstance(raw_questions, list) or not raw_questions or len(raw_questions) > 100:
         raise HTTPException(status_code=502, detail="Question generator returned an invalid question set")
 
+    # Keep the assessment size stable when a model returns more than requested.
+    raw_questions = raw_questions[:30]
     allowed_technologies = set(technologies)
     normalised: list[dict[str, Any]] = []
     for index, raw_question in enumerate(raw_questions):
@@ -431,30 +443,51 @@ async def _generate_questions(
     prompt = (
         "You are a technical assessment engine. Generate exactly 30 multiple-choice "
         f"questions to assess skill level for: {', '.join(payload.technologies)}. "
-        f"Industry context: {payload.industry}. Return ONLY a valid JSON array, no "
+        f"Industry context: {payload.industry}. Assessment goal: {payload.goal or 'general skill assessment'}. "
+        "Return ONLY a valid JSON array, no "
         'markdown, no explanation. Each object must have: "q" (string question), '
         '"options" (array of exactly 4 strings), "answer" (0-3 index of correct '
         'answer), "technology" (which selected technology this question covers). '
         "Mix questions evenly across all selected technologies. Vary difficulty: "
         "some beginner, some intermediate, some advanced."
     )
+    if settings.groq_api_key:
+        provider = "Groq"
+        endpoint = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": settings.groq_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }
+        response_parser = "groq"
+    else:
+        provider = "Gemini"
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
+        headers = {"Content-Type": "application/json"}
+        body = {"contents": [{"parts": [{"text": prompt}]}]}
+        response_parser = "gemini"
+
     try:
         response = await _http_client(request).post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent",
-            params={"key": settings.gemini_api_key},
-            headers={"Content-Type": "application/json"},
-            json={"contents": [{"parts": [{"text": prompt}]}]},
+            endpoint,
+            params={"key": settings.gemini_api_key} if response_parser == "gemini" else None,
+            headers=headers,
+            json=body,
             timeout=settings.generator_timeout_seconds,
         )
     except httpx.RequestError as exc:
-        logger.warning("Question generator request failed: %s", type(exc).__name__)
+        logger.warning("%s question generator request failed: %s", provider, type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to generate assessment questions",
         ) from exc
 
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Question generator returned status %s", response.status_code)
+        logger.error("%s question generator returned status %s", provider, response.status_code)
         if response.status_code == 429:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -467,7 +500,10 @@ async def _generate_questions(
 
     try:
         data = response.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        if response_parser == "groq":
+            text = data["choices"][0]["message"]["content"]
+        else:
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

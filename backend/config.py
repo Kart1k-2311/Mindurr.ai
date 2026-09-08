@@ -19,6 +19,8 @@ class Settings:
     frontend_origins: tuple[str, ...]
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
     request_timeout_seconds: float = 20.0
     generator_timeout_seconds: float = 90.0
 
@@ -28,8 +30,8 @@ class Settings:
             missing.append("SUPABASE_URL")
         if not self.supabase_service_key:
             missing.append("SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY")
-        if not self.gemini_api_key:
-            missing.append("GEMINI_API_KEY or AI_API_KEY")
+        if not self.gemini_api_key and not self.groq_api_key:
+            missing.append("GEMINI_API_KEY, AI_API_KEY, or GROQ_API_KEY")
         if missing:
             raise RuntimeError("Missing required server configuration: " + ", ".join(missing))
 
@@ -63,6 +65,8 @@ def get_settings() -> Settings:
             or ""
         ),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+        groq_api_key=os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API") or "",
+        groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
     )
 
 
