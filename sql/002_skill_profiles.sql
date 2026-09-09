@@ -1,11 +1,13 @@
 CREATE TABLE IF NOT EXISTS skill_profiles (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid REFERENCES auth.users NOT NULL,
+  goal text,
   industry text NOT NULL,
   languages text[] NOT NULL,
   technologies text[] NOT NULL,
   scores jsonb NOT NULL DEFAULT '{}',
   total_score numeric NOT NULL DEFAULT 0,
+  ai_insights jsonb,
   completed_at timestamp DEFAULT now(),
   UNIQUE(user_id)
 );

@@ -48,8 +48,44 @@ The platform is engineered using a modular, lightweight core built on foundation
 ---
 ## Getting started
 
+### 1. Prerequisites
+- Python 3.13+
+- Supabase project (URL, anon key, service role key)
+- Google Gemini API key
 
----
+### 2. Backend
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate          # Windows (source venv/bin/activate on macOS/Linux)
+pip install -r requirements.txt
+```
+
+Copy `.env.example` to `.env` and fill in the Supabase credentials and Gemini API key.
+
+Run the SQL migrations in the **Supabase Dashboard → SQL Editor** (in order):
+- `sql/001_profiles.sql`
+- `sql/002_skill_profiles.sql`
+- `sql/003_recruiter_profiles.sql`
+- `sql/004_job_descriptions.sql`
+- `sql/005_candidate_matches.sql`
+- `sql/006_add_ai_insights.sql`
+
+Start the API server:
+```bash
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### 3. Frontend
+The frontend is a static site (HTML/JS + Supabase JS SDK via CDN). Serve it on a port allowed by the backend CORS config (e.g. 8080):
+```bash
+cd frontend
+python -m http.server 8080
+```
+Open `http://localhost:8080`.
+
+Landing → `user_selection.html` → `login_register.html` (role-based) → `assessment.html` → `profile.html` (student) or
+`recruiter_dashboard.html` → `candidate_profile.html` (recruiter).
 ## Course Content Architecture & Curriculum Management
 
 ---

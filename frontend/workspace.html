@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindurr.ai | Learning Workspace & Roadmap</title>
+
+    <!-- Google Fonts: Geist, Inter, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="vendor/supabase.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "surface": "#fefce8",
+                        "surface-dim": "#fef9c3",
+                        "surface-bright": "#fffdf2",
+                        "surface-container-low": "#f6f4e1",
+                        "surface-white": "#ffffff",
+                        "on-surface": "#1c1917",
+                        "on-surface-variant": "#44403c",
+                        "primary": "#eab308",
+                        "primary-dark": "#785a00",
+                        "on-primary": "#422006",
+                        "primary-container": "#fef08a",
+                        "secondary": "#885123",
+                        "outline": "#a8a29e",
+                        "outline-variant": "#d6d3d1",
+                        "inverse-surface": "#313124"
+                    },
+                    fontFamily: {
+                        "display": ["Geist", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "code": ["JetBrains Mono", "monospace"]
+                    }
+                }
+            }
+        };
+    </script>
+
+    <style>
+        body {
+            background-color: #fefce8;
+            color: #1c1917;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+        }
+
+        /* Ambient Glow */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px;
+            height: 500px;
+            background: radial-gradient(ellipse at center, rgba(254, 240, 138, 0.45) 0%, rgba(234, 179, 8, 0.12) 50%, transparent 70%);
+            filter: blur(60px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glass-card {
+            background: rgba(255, 253, 242, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid #d6d3d1;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px -2px rgba(66, 32, 6, 0.05);
+        }
+
+        /* Timeline connector line */
+        .timeline-line {
+            position: absolute;
+            left: 20px;
+            top: 40px;
+            bottom: 40px;
+            width: 3px;
+            background: linear-gradient(to bottom, #eab308, #d6d3d1);
+            z-index: 0;
+        }
+
+        @media (min-width: 768px) {
+            .timeline-line {
+                left: 28px;
+            }
+        }
+
+        .milestone-checkbox:checked + span {
+            text-decoration: line-through;
+            color: #a8a29e;
+        }
+    </style>
+</head>
+<body class="min-h-screen antialiased">
+
+<!-- NAVIGATION HEADER -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-md border-b border-outline-variant/30">
+    <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+        <a class="flex items-center gap-2" href="index.html">
+            <span class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center p-1.5 shadow-sm">
+                <img alt="Mindurr Logo" src="mindurr_logo.svg" class="w-full h-full object-contain">
+            </span>
+            <span class="font-bold font-display text-lg tracking-tight">Mindurr.ai</span>
+        </a>
+
+        <div class="flex items-center gap-3">
+            <a href="profile.html" class="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full border border-outline-variant text-xs font-bold uppercase tracking-wider text-on-surface hover:bg-surface-container-low transition shadow-sm">
+                <span class="material-symbols-outlined text-sm">arrow_back</span>
+                <span>Skill Profile</span>
+            </a>
+            <span id="user-email-badge" class="text-xs font-code font-semibold text-on-surface-variant hidden md:block"></span>
+            <button onclick="logout()" class="text-xs font-bold uppercase tracking-widest bg-inverse-surface text-white px-4 py-2 rounded-full hover:opacity-90 transition">Logout</button>
+        </div>
+    </div>
+</header>
+
+<main class="pt-24 pb-20 max-w-[1100px] mx-auto px-6 relative z-10">
+
+    <!-- LOADING STATE -->
+    <div id="loading-state" class="flex flex-col items-center justify-center h-[55vh]">
+        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="font-display font-bold text-lg text-on-surface">Assembling your specialized curriculum roadmap...</p>
+        <p class="text-xs text-on-surface-variant mt-1">Calibrating goals, competencies, and sequence milestones</p>
+    </div>
+
+    <!-- MAIN ROADMAP VIEW (Hidden until loaded) -->
+    <div id="roadmap-content" class="hidden flex flex-col gap-8">
+
+        <!-- HERO BANNER -->
+        <div class="glass-card p-6 md:p-8 bg-gradient-to-r from-surface-bright via-surface-dim to-surface-container-low">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-code">
+                            Specialized Curriculum
+                        </span>
+                        <span id="role-badge" class="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-surface border border-outline-variant font-code text-on-surface-variant">
+                            Software Engineer
+                        </span>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-display font-extrabold tracking-tight" id="roadmap-heading">
+                        Learning Workspace
+                    </h1>
+                    <p class="text-sm text-on-surface-variant mt-1.5 max-w-2xl" id="roadmap-subheading">
+                        A calibrated, milestone-driven curriculum designed to systematically close skill gaps detected in your assessment.
+                    </p>
+                </div>
+
+                <!-- Overall Progress Metric Box -->
+                <div class="flex items-center gap-4 bg-surface-white/80 p-4 rounded-2xl border border-outline-variant/50 shadow-sm flex-shrink-0">
+                    <div class="text-center min-w-[70px]">
+                        <span id="progress-percent" class="text-3xl font-display font-black text-primary-dark">0%</span>
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Completed</span>
+                    </div>
+                    <div class="w-px h-10 bg-outline-variant/50"></div>
+                    <div class="text-center min-w-[70px]">
+                        <span id="completed-steps-count" class="text-3xl font-display font-black text-on-surface">0/24</span>
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Roadmap Steps</span>
+                    </div>
+                    <div class="w-px h-10 bg-outline-variant/50"></div>
+                    <div class="text-center min-w-[70px]">
+                        <span id="total-weeks" class="text-3xl font-display font-black text-on-surface">12</span>
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Weeks Est.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="w-full bg-outline-variant/30 rounded-full h-2.5 mt-6 overflow-hidden">
+                <div id="progress-bar-fill" class="bg-primary h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- AI GAP DIAGNOSIS CARD -->
+        <div class="glass-card p-6 border-l-4 border-l-primary bg-surface-bright shadow-sm">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-primary-dark font-bold flex-shrink-0 mt-0.5">
+                    <span class="material-symbols-outlined text-xl">psychology</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-display font-bold text-base text-on-surface">AI Skill Gap Diagnosis &amp; Career Track</h3>
+                        <span id="goal-tag" class="text-[10px] font-code font-bold uppercase px-2 py-0.5 rounded bg-surface border border-outline-variant text-on-surface-variant"></span>
+                    </div>
+                    <p id="gap-summary-text" class="text-xs md:text-sm text-on-surface-variant leading-relaxed mt-1.5">
+                        Calibrating sequence steps to optimize hireability and accelerate mastery for your selected goal.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROADMAP TIMELINE STEPPER -->
+        <div>
+            <!-- Timeline Toolbar Header -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-display font-extrabold tracking-tight flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">timeline</span>
+                        Curriculum Timeline &amp; Step Sequence
+                    </h2>
+                    <p class="text-xs text-on-surface-variant mt-0.5">
+                        Detailed tasks categorized by course difficulty. Check off tasks as you learn to advance through difficulty tiers.
+                    </p>
+                </div>
+
+                <!-- Action Buttons: + Add Step and Reset Sequence -->
+                <div class="flex items-center gap-2.5">
+                    <button onclick="openAddStepModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-sm hover:bg-[#dfa806] transition-all cursor-pointer">
+                        <span class="material-symbols-outlined text-base">add_circle</span>
+                        <span>Add Step</span>
+                    </button>
+                    <button onclick="resetSequence()" title="Reset sequence to default blueprint for this goal" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-outline-variant bg-surface hover:bg-surface-dim text-xs font-bold text-on-surface transition-all shadow-sm cursor-pointer">
+                        <span class="material-symbols-outlined text-base">restart_alt</span>
+                        <span>Reset Sequence</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- DIFFICULTY FILTER BAR & REAL-TIME STATS -->
+            <div class="glass-card p-3 sm:p-4 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border border-outline-variant/60 bg-surface-bright shadow-xs">
+                <!-- Filter Buttons -->
+                <div  class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                    
+                    <button onclick="setDifficultyFilter('all')" id="filter-btn-all" class="diff-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all border border-primary bg-primary text-on-primary shadow-xs cursor-pointer flex-shrink-0">
+                        All Tiers
+                    </button>
+                    <button onclick="setDifficultyFilter('Beginner')" id="filter-btn-Beginner" class="diff-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all border border-outline-variant bg-surface hover:bg-surface-dim text-on-surface cursor-pointer flex-shrink-0">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600 mr-1.5"></span>Beginner
+                    </button>
+                    <button onclick="setDifficultyFilter('Intermediate')" id="filter-btn-Intermediate" class="diff-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all border border-outline-variant bg-surface hover:bg-surface-dim text-on-surface cursor-pointer flex-shrink-0">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-600 mr-1.5"></span>Intermediate
+                    </button>
+                    <button onclick="setDifficultyFilter('Advanced')" id="filter-btn-Advanced" class="diff-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all border border-outline-variant bg-surface hover:bg-surface-dim text-on-surface cursor-pointer flex-shrink-0">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-600 mr-1.5"></span>Advanced
+                    </button>
+                    <button onclick="setDifficultyFilter('Expert')" id="filter-btn-Expert" class="diff-filter-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all border border-outline-variant bg-surface hover:bg-surface-dim text-on-surface cursor-pointer flex-shrink-0">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-purple-600 mr-1.5"></span>Expert
+                    </button>
+                </div>
+
+                <!-- Difficulty Progress Counter Pills -->
+                
+            </div>
+
+            <!-- Steps Container with Timeline Line -->
+            <div class="relative pl-0 md:pl-4">
+                <div class="timeline-line hidden md:block"></div>
+                <div id="steps-container" class="space-y-6 relative z-10">
+                    <!-- Dynamically injected timeline cards -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<!-- ADD STEP MODAL -->
+<div id="add-step-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-lg p-6 sm:p-7 shadow-2xl border-2 border-primary/40 bg-surface-bright relative animate-in fade-in zoom-in duration-200">
+        <div class="flex items-center justify-between border-b border-outline-variant/30 pb-3 mb-5">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-2xl">add_task</span>
+                <h3 class="font-display font-extrabold text-lg text-on-surface">Add Custom Curriculum Step</h3>
+            </div>
+            <button onclick="closeAddStepModal()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-dim text-on-surface-variant transition">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+
+        <form id="add-step-form" onsubmit="handleAddStepSubmit(event)" class="space-y-4 text-xs">
+            <div>
+                <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Step Title *</label>
+                <input type="text" id="new-step-title" required placeholder="e.g. GraphQL &amp; Relay State Systems"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Track / Domain *</label>
+                    <input type="text" id="new-step-track" required placeholder="e.g. Data Layer"
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium">
+                </div>
+                <div>
+                    <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Estimated Duration</label>
+                    <input type="text" id="new-step-duration" placeholder="e.g. 2 Weeks" value="2 Weeks"
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Course Difficulty Tier *</label>
+                    <select id="new-step-difficulty" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium">
+                        <option value="Beginner">Beginner (★☆☆☆)</option>
+                        <option value="Intermediate" selected>Intermediate (★★☆☆)</option>
+                        <option value="Advanced">Advanced (★★★☆)</option>
+                        <option value="Expert">Expert (★★★★)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Initial Status</label>
+                    <select id="new-step-status" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium">
+                        <option value="Queued">Queued (Upcoming)</option>
+                        <option value="Active">Active (In Progress)</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Description</label>
+                <textarea id="new-step-desc" rows="2" placeholder="Brief explanation of competencies mastered in this phase..."
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"></textarea>
+            </div>
+
+            <div>
+                <label class="block font-bold text-on-surface uppercase tracking-wider mb-1">Actionable Milestones (one per line)</label>
+                <textarea id="new-step-milestones" rows="3" placeholder="Define type contracts&#10;Implement query resolver&#10;Add integration unit test"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-white focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant/30">
+                <button type="button" onclick="closeAddStepModal()" class="px-4 py-2 rounded-xl border border-outline-variant bg-surface hover:bg-surface-dim font-bold text-on-surface transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 rounded-xl bg-primary text-on-primary font-bold shadow-sm hover:bg-[#dfa806] transition">
+                    Add to Sequence
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="config.js"></script>
+<script src="blueprints_data.js"></script>
+<script src="roadmap_engine.js"></script>
+<script>
+// ==============================================================================
+// CURRICULUM BLUEPRINTS (LOADED FROM blueprints_data.js WITH FALLBACK)
+// ==============================================================================
+// GOAL_BLUEPRINTS is imported via blueprints_data.js
+if (typeof GOAL_BLUEPRINTS === 'undefined') {
+    console.error("GOAL_BLUEPRINTS data file not loaded!");
+}
+
+// ==============================================================================
+// STATE & APPLICATION LOGIC
+// ==============================================================================
+let activeUser = null;
+let currentGoalKey = 'algorithm_foundations';
+let currentBlueprint = null;
+let currentSteps = [];
+
+document.addEventListener("DOMContentLoaded", async () => {
+    // 1. Authenticate user
+    const authInfo = await getAuthenticatedProfile();
+    if (!authInfo) return; // Will redirect to login if not logged in
+
+    activeUser = authInfo.user;
+    const emailEl = document.getElementById("user-email-badge");
+    if (emailEl) emailEl.textContent = activeUser.email;
+
+    // 2. Load workspace for this user
+    await initializeWorkspace();
+});
+
+function normalizeGoalKey(rawGoal) {
+    if (!rawGoal) return 'algorithm_foundations';
+    const cleaned = String(rawGoal).toLowerCase().trim().replace(/[-\s]+/g, '_');
+    if (cleaned === 'full_stack') return 'fullstack';
+    if (GOAL_BLUEPRINTS[cleaned]) return cleaned;
+
+    // Semantic keyword detection
+    if (cleaned.includes('front')) return 'frontend';
+    if (cleaned.includes('back')) return 'backend';
+    if (cleaned.includes('full')) return 'fullstack';
+    if (cleaned.includes('devops') || cleaned.includes('cloud')) return 'devops';
+    if (cleaned.includes('analyst') || cleaned.includes('data')) return 'data_analyst';
+    if (cleaned.includes('ai') || cleaned.includes('intelligence')) return 'ai_engineer';
+    if (cleaned.includes('machine') || cleaned.includes('learning') || cleaned.includes('ml')) return 'machine_learning';
+    if (cleaned.includes('cyber') || cleaned.includes('security')) return 'cyber_security';
+    return 'algorithm_foundations';
+}
+
+async function initializeWorkspace() {
+    try {
+        let detectedGoal = null;
+
+        // Step A: Check local storage caches first for instant resolution
+        try {
+            const cachedProfile = JSON.parse(localStorage.getItem('mindurr_skill_profile') || localStorage.getItem('mindurr_profile_data') || '{}');
+            if (cachedProfile.goal || (cachedProfile.scores && cachedProfile.scores._goal)) {
+                detectedGoal = cachedProfile.goal || cachedProfile.scores._goal;
+            }
+        } catch (e) {}
+
+        // Step B: Fetch from Supabase skill_profiles table
+        try {
+            const { data: profile } = await supabaseClient
+                .from('skill_profiles')
+                .select('*')
+                .eq('user_id', activeUser.id)
+                .maybeSingle();
+
+            if (profile) {
+                const cloudGoal = profile.goal || (profile.scores && profile.scores._goal);
+                if (cloudGoal) detectedGoal = cloudGoal;
+            }
+        } catch (dbErr) {
+            console.warn('Supabase skill_profiles query note:', dbErr);
+        }
+
+        // Normalize and select blueprint
+        currentGoalKey = normalizeGoalKey(detectedGoal);
+        currentBlueprint = GOAL_BLUEPRINTS[currentGoalKey] || GOAL_BLUEPRINTS.algorithm_foundations;
+
+        // Step C: Check if user has saved custom step modifications
+        let savedSteps = null;
+
+        // 1. Check local storage for this user & goal
+        try {
+            const localSaved = localStorage.getItem(`mindurr_steps_${activeUser.id}_${currentGoalKey}`);
+            if (localSaved) {
+                const parsed = JSON.parse(localSaved);
+                if (Array.isArray(parsed) && parsed.length > 0) savedSteps = parsed;
+            }
+        } catch (e) {}
+
+        // 2. Check Supabase learning_roadmaps table
+        if (!savedSteps) {
+            try {
+                const { data: dbRoadmap } = await supabaseClient
+                    .from('learning_roadmaps')
+                    .select('*')
+                    .eq('user_id', activeUser.id)
+                    .maybeSingle();
+
+                if (dbRoadmap && Array.isArray(dbRoadmap.steps) && dbRoadmap.steps.length > 0) {
+                    // Only use if role matches current goal
+                    if (normalizeGoalKey(dbRoadmap.target_role) === currentGoalKey) {
+                        savedSteps = dbRoadmap.steps;
+                    }
+                }
+            } catch (rErr) {
+                console.warn('Supabase learning_roadmaps fetch note:', rErr);
+            }
+        }
+
+        // Initialize steps: prioritize full sequence if stored cache has fewer steps than updated blueprint
+        if (savedSteps && savedSteps.length >= (currentBlueprint.steps || []).length) {
+            currentSteps = savedSteps;
+        } else {
+            // New 24-step blueprint upgrade
+            currentSteps = JSON.parse(JSON.stringify(currentBlueprint.steps));
+        }
+
+        // Render UI
+        renderHeaderData();
+        renderTimeline();
+
+        // Reveal content
+        document.getElementById("loading-state").classList.add("hidden");
+        document.getElementById("roadmap-content").classList.remove("hidden");
+
+        // Sync initial state if not yet saved in cloud
+        if (!savedSteps) {
+            persistSequence(false);
+        }
+
+    } catch (err) {
+        console.error("Workspace initialization error:", err);
+        document.getElementById("loading-state").innerHTML = `
+            <div class="glass-card p-6 text-center max-w-md">
+                <p class="text-red-700 font-bold mb-3">Unable to load curriculum sequence: ${err.message}</p>
+                <a href="profile.html" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-on-primary text-xs font-bold uppercase tracking-wider">
+                    <span class="material-symbols-outlined text-sm">arrow_back</span>
+                    <span>Return to Profile</span>
+                </a>
+            </div>
+        `;
+    }
+}
+
+function renderHeaderData() {
+    const roleBadge = document.getElementById("role-badge");
+    const goalTag = document.getElementById("goal-tag");
+    const heading = document.getElementById("roadmap-heading");
+    const subheading = document.getElementById("roadmap-subheading");
+    const gapText = document.getElementById("gap-summary-text");
+    const totalWeeksEl = document.getElementById("total-weeks");
+
+    if (roleBadge) roleBadge.textContent = currentBlueprint.role.toUpperCase();
+    if (goalTag) goalTag.textContent = currentBlueprint.track;
+    if (heading) heading.textContent = `${currentBlueprint.role} Curriculum`;
+    if (subheading) subheading.textContent = `A calibrated milestone-driven sequence for ${currentBlueprint.track}.`;
+    if (gapText) gapText.textContent = currentBlueprint.gap_summary;
+    if (totalWeeksEl) totalWeeksEl.textContent = currentBlueprint.total_weeks || 12;
+}
+
+// Active difficulty filter state: 'all' | 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert'
+let activeDifficultyFilter = 'all';
+
+function setDifficultyFilter(tier) {
+    activeDifficultyFilter = tier;
+    
+    // Update button visual styles
+    document.querySelectorAll('.diff-filter-btn').forEach(btn => {
+        btn.classList.remove('border-primary', 'bg-primary', 'text-on-primary', 'shadow-xs');
+        btn.classList.add('border-outline-variant', 'bg-surface', 'text-on-surface');
+    });
+    
+    const activeBtn = document.getElementById(`filter-btn-${tier}`);
+    if (activeBtn) {
+        activeBtn.classList.remove('border-outline-variant', 'bg-surface', 'text-on-surface');
+        activeBtn.classList.add('border-primary', 'bg-primary', 'text-on-primary', 'shadow-xs');
+    }
+    
+    renderTimeline();
+}
+
+function getDifficultyBadge(diff) {
+    const d = diff || 'Intermediate';
+    switch (d) {
+        case 'Beginner':
+            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-900 border border-emerald-300 font-code"><span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>Beginner</span>';
+        case 'Intermediate':
+            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-900 border border-blue-300 font-code"><span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>Intermediate</span>';
+        case 'Advanced':
+            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-950 border border-amber-300 font-code"><span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span>Advanced</span>';
+        case 'Expert':
+            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-950 border border-purple-300 font-code"><span class="w-1.5 h-1.5 rounded-full bg-purple-600"></span>Expert</span>';
+        default:
+            return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-surface-container-low text-on-surface border border-outline-variant font-code">${d}</span>`;
+    }
+}
+
+function getTaskDifficultyBadge(diff) {
+    const d = diff || 'Beginner';
+    switch (d) {
+        case 'Beginner':
+            return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-50 text-emerald-900 border border-emerald-300/80 font-code flex-shrink-0">Easy</span>';
+        case 'Intermediate':
+            return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-50 text-blue-900 border border-blue-300/80 font-code flex-shrink-0">Med</span>';
+        case 'Advanced':
+            return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-50 text-amber-950 border border-amber-300/80 font-code flex-shrink-0">Hard</span>';
+        case 'Expert':
+            return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-50 text-purple-950 border border-purple-300/80 font-code flex-shrink-0">Expert</span>';
+        default:
+            return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-surface-container-low text-on-surface border border-outline-variant font-code flex-shrink-0">${d}</span>`;
+    }
+}
+
+function renderTimeline() {
+    const container = document.getElementById("steps-container");
+    if (!container) return;
+
+    if (currentSteps.length === 0) {
+        container.innerHTML = `
+            <div class="glass-card p-8 text-center text-on-surface-variant">
+                <p class="font-bold text-sm mb-3">No curriculum phases in this sequence.</p>
+                <button onclick="resetSequence()" class="btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                    Load Default Blueprint
+                </button>
+            </div>
+        `;
+        updateProgress();
+        return;
+    }
+
+    container.innerHTML = currentSteps.map((step, idx) => {
+        const stepNum = idx + 1;
+        const status = step.status || 'Queued'; // 'Completed' | 'Active' | 'Queued'
+        const isCompleted = status === 'Completed';
+        const isActive = status === 'Active';
+        const phaseDifficulty = step.difficulty || (stepNum === 1 ? 'Beginner' : (stepNum === 2 ? 'Intermediate' : (stepNum === 3 ? 'Advanced' : 'Expert')));
+
+        // Check if phase matches filter
+        const allMilestones = Array.isArray(step.milestones) ? step.milestones : [];
+        const hasMatchingTasks = activeDifficultyFilter === 'all' || 
+                                 phaseDifficulty === activeDifficultyFilter || 
+                                 allMilestones.some(m => (m.difficulty || phaseDifficulty) === activeDifficultyFilter);
+
+        // Indicator styling
+        let borderClass = 'border-l-4 border-l-outline-variant bg-surface-white/80';
+        let nodeBg = 'bg-outline-variant/50 text-on-surface-variant';
+        let nodeContent = `${stepNum}`;
+        let statusBadgeClass = 'bg-stone-100 text-stone-700 border-stone-300';
+
+        if (isCompleted) {
+            borderClass = 'border-l-4 border-l-emerald-600 bg-surface-white/95 shadow-sm';
+            nodeBg = 'bg-emerald-600 text-white font-black';
+            nodeContent = '✓';
+            statusBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+        } else if (isActive) {
+            borderClass = 'border-l-4 border-l-primary bg-surface-bright shadow-sm ring-1 ring-primary/20';
+            nodeBg = 'bg-primary text-on-primary font-black ring-4 ring-primary/25';
+            statusBadgeClass = 'bg-amber-100 text-amber-900 border-amber-400 font-extrabold';
+        }
+
+        const duration = step.duration || '2-3 Weeks';
+        const track = step.track || currentBlueprint.track;
+        const skills = Array.isArray(step.skills_to_build) ? step.skills_to_build : [];
+        const project = step.project || null;
+        const resources = Array.isArray(step.resources) ? step.resources : [];
+
+        // Calculate phase task completion
+        const completedMilestones = allMilestones.filter(m => m.completed).length;
+        const totalMilestones = allMilestones.length;
+        const phaseProgressPct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : (isCompleted ? 100 : 0);
+
+        // Filter milestones if active filter is set
+        const visibleMilestones = allMilestones.map((m, originalIndex) => ({ ...m, originalIndex }))
+            .filter(m => activeDifficultyFilter === 'all' || (m.difficulty || phaseDifficulty) === activeDifficultyFilter);
+
+        return `
+        <div class="glass-card p-5 sm:p-6 md:p-7 relative transition-all duration-200 hover:shadow-md rounded-2xl ${borderClass} ${!hasMatchingTasks && activeDifficultyFilter !== 'all' ? 'opacity-40 grayscale-[40%]' : ''}">
+            
+            <!-- Step Header Row -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center font-display text-xs shadow-sm flex-shrink-0 ${nodeBg}">
+                        ${nodeContent}
+                    </span>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-primary font-code">Card ${stepNum} of ${currentSteps.length} &bull; ${duration}</span>
+                            ${getDifficultyBadge(phaseDifficulty)}
+                            <span class="text-[10px] font-semibold text-on-surface-variant font-code hidden sm:inline">&bull; ${track}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Controls: Interactive Status Toggle & Delete -->
+                <div class="flex items-center gap-2 self-end sm:self-auto">
+                    <button onclick="cycleStepStatus(${idx})" title="Click to cycle status: Queued → Active → Completed"
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer shadow-xs ${statusBadgeClass}">
+                        <span class="w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-600' : (isActive ? 'bg-primary animate-pulse' : 'bg-stone-400')}"></span>
+                        <span>${status}</span>
+                        <span class="material-symbols-outlined text-[13px] opacity-70">sync</span>
+                    </button>
+
+                    <button onclick="deleteStep(${idx})" title="Delete this phase from timeline"
+                        class="p-1 rounded-lg text-on-surface-variant hover:text-red-700 hover:bg-red-50 transition cursor-pointer">
+                        <span class="material-symbols-outlined text-base">delete_outline</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Title & Description -->
+            <h3 class="text-base sm:text-lg md:text-xl font-display font-bold text-on-surface mb-1.5">${step.title}</h3>
+            <p class="text-xs sm:text-sm text-on-surface-variant leading-relaxed mb-4">${step.description || ''}</p>
+
+            <!-- Phase Task Mini-Progress Bar -->
+            <div class="mb-4 bg-surface-container-low/70 p-3 rounded-xl border border-outline-variant/30 flex items-center justify-between gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center justify-between text-[11px] font-code mb-1">
+                        <span class="font-bold text-on-surface">Deliverable Checkpoint</span>
+                        <span class="text-on-surface-variant">${completedMilestones}/${totalMilestones} Tasks &bull; ${phaseProgressPct}%</span>
+                    </div>
+                    <div class="w-full bg-outline-variant/30 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-primary h-1.5 rounded-full transition-all duration-300" style="width: ${phaseProgressPct}%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Competencies Targeted -->
+            ${skills.length > 0 ? `
+            <div class="mb-4">
+                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1.5 font-code">Target Competencies</span>
+                <div class="flex flex-wrap gap-1.5">
+                    ${skills.map(s => `<span class="px-2.5 py-0.5 bg-surface-container-low border border-outline-variant/40 rounded-md text-[11px] font-medium text-on-surface">${s}</span>`).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Actionable Graded Tasks Checklist -->
+            ${visibleMilestones.length > 0 ? `
+            <div class="mb-4 bg-surface-bright/90 p-3.5 sm:p-4 rounded-xl border border-outline-variant/30">
+                <div class="flex items-center justify-between mb-2.5">
+                    <span class="text-[10px] font-bold text-primary uppercase tracking-wider font-code">Actionable Tasks by Course Difficulty</span>
+                    <span class="text-[10px] text-on-surface-variant font-code">${visibleMilestones.filter(m => m.completed).length}/${visibleMilestones.length} Completed</span>
+                </div>
+                <div class="space-y-2">
+                    ${visibleMilestones.map(m => `
+                        <div class="flex items-start justify-between gap-3 p-2 rounded-lg hover:bg-surface-white/80 transition border border-transparent hover:border-outline-variant/30 ${m.completed ? 'opacity-70 bg-surface-white/40' : ''}">
+                            <label class="flex items-start gap-2.5 cursor-pointer select-none text-xs sm:text-sm text-on-surface flex-1">
+                                <input type="checkbox" class="milestone-checkbox mt-0.5 rounded border-outline text-primary focus:ring-primary w-4 h-4 cursor-pointer flex-shrink-0"
+                                    ${m.completed ? 'checked' : ''}
+                                    onchange="toggleMilestone(${idx}, ${m.originalIndex}, this.checked)">
+                                <span class="${m.completed ? 'line-through text-on-surface-variant' : 'font-medium'}">${m.text}</span>
+                            </label>
+                            <div class="flex items-center gap-1.5 flex-shrink-0">
+                                ${getTaskDifficultyBadge(m.difficulty || phaseDifficulty)}
+                                ${m.est_hours ? `<span class="text-[10px] font-code text-on-surface-variant px-1.5 py-0.5 bg-surface-container-low rounded border border-outline-variant/30">${m.est_hours}</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : (allMilestones.length > 0 && activeDifficultyFilter !== 'all' ? `
+            <div class="mb-4 p-3 rounded-xl bg-surface-dim/40 border border-outline-variant/20 text-center text-xs text-on-surface-variant">
+                No tasks matching difficulty tier <strong>"${activeDifficultyFilter}"</strong> in this phase.
+            </div>
+            ` : '')}
+
+            <!-- Hands-on Capstone Project Card -->
+            ${project && project.title ? `
+            <div class="mb-4 p-3.5 sm:p-4 rounded-xl bg-surface-container-low/80 border border-outline-variant/40">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-base">code</span>
+                        <span class="font-display font-bold text-xs uppercase tracking-wider text-on-surface">Hands-on Capstone: ${project.title}</span>
+                    </div>
+                    <span class="text-[9px] font-bold uppercase font-code px-2 py-0.5 rounded bg-surface border border-outline-variant text-on-surface-variant">Portfolio Artifact</span>
+                </div>
+                <p class="text-xs text-on-surface-variant pl-6 leading-relaxed">${project.description}</p>
+            </div>
+            ` : ''}
+
+            <!-- Curated Learning Resources (Selective to Anchor Cards) -->
+            ${resources.length > 0 ? `
+            <div class="mt-1">
+                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1.5 font-code flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px] text-primary">menu_book</span>
+                    Curated Learning Reference
+                </span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    ${resources.map(r => `
+                        <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="p-2.5 rounded-xl border border-outline-variant/50 bg-surface-white/90 hover:border-primary hover:bg-surface-white transition flex flex-col justify-between group shadow-2xs">
+                            <span class="text-xs font-bold text-on-surface group-hover:text-primary transition line-clamp-1">${r.title}</span>
+                            <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-outline-variant/30 text-[10px] text-on-surface-variant font-code">
+                                <span>${r.platform}</span>
+                                <span class="text-primary font-bold inline-flex items-center gap-0.5">Read Guide &rarr;</span>
+                            </div>
+                        </a>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+        </div>
+        `;
+    }).join('');
+
+    updateProgress();
+}
+
+// ==============================================================================
+// INTERACTIVE TIMELINE CONTROLS
+// ==============================================================================
+
+// Cycle status: Queued -> Active -> Completed -> Queued
+function cycleStepStatus(stepIdx) {
+    const step = currentSteps[stepIdx];
+    if (!step) return;
+
+    const sequence = ['Queued', 'Active', 'Completed'];
+    const currentIdx = sequence.indexOf(step.status || 'Queued');
+    const nextStatus = sequence[(currentIdx + 1) % sequence.length];
+
+    step.status = nextStatus;
+
+    // If step is marked Completed, check all its milestones
+    if (nextStatus === 'Completed' && Array.isArray(step.milestones)) {
+        step.milestones.forEach(m => m.completed = true);
+    }
+    // If set to Queued, uncheck milestones
+    else if (nextStatus === 'Queued' && Array.isArray(step.milestones)) {
+        step.milestones.forEach(m => m.completed = false);
+    }
+
+    renderTimeline();
+    persistSequence();
+}
+
+// Toggle individual milestone checkbox
+function toggleMilestone(stepIdx, milestoneIdx, isChecked) {
+    const step = currentSteps[stepIdx];
+    if (!step || !step.milestones || !step.milestones[milestoneIdx]) return;
+
+    step.milestones[milestoneIdx].completed = isChecked;
+
+    // Auto-advance step status if all milestones are completed
+    const allChecked = step.milestones.every(m => m.completed);
+    if (allChecked) {
+        step.status = 'Completed';
+    } else if (step.status === 'Completed') {
+        // If an already completed step had a milestone unchecked, move back to Active
+        step.status = 'Active';
+    }
+
+    renderTimeline();
+    persistSequence();
+}
+
+// Delete step
+function deleteStep(stepIdx) {
+    const step = currentSteps[stepIdx];
+    if (!step) return;
+
+    if (!confirm(`Remove "${step.title}" from your sequence?`)) return;
+
+    currentSteps.splice(stepIdx, 1);
+    renderTimeline();
+    persistSequence();
+}
+
+// Open / Close Add Step Modal
+function openAddStepModal() {
+    document.getElementById("add-step-modal").classList.remove("hidden");
+    document.getElementById("new-step-title").focus();
+}
+
+function closeAddStepModal() {
+    document.getElementById("add-step-modal").classList.add("hidden");
+    document.getElementById("add-step-form").reset();
+}
+
+// Handle Add Step Form Submission
+function handleAddStepSubmit(e) {
+    e.preventDefault();
+
+    const title = document.getElementById("new-step-title").value.trim();
+    const track = document.getElementById("new-step-track").value.trim() || currentBlueprint.track;
+    const duration = document.getElementById("new-step-duration").value.trim() || "2 Weeks";
+    const difficulty = document.getElementById("new-step-difficulty") ? document.getElementById("new-step-difficulty").value : "Intermediate";
+    const status = document.getElementById("new-step-status").value || "Queued";
+    const desc = document.getElementById("new-step-desc").value.trim();
+    const rawMilestones = document.getElementById("new-step-milestones").value.trim();
+
+    const milestones = rawMilestones ? rawMilestones.split('\n').filter(Boolean).map((text, mIdx) => ({
+        id: `custom_m_${Date.now()}_${mIdx}`,
+        text: text.trim(),
+        difficulty: difficulty,
+        est_hours: "3 hrs",
+        completed: status === 'Completed'
+    })) : [];
+
+    const newStep = {
+        id: `custom_s_${Date.now()}`,
+        title,
+        track,
+        duration,
+        difficulty,
+        difficulty_rating: difficulty === 'Beginner' ? 1 : (difficulty === 'Intermediate' ? 2 : (difficulty === 'Advanced' ? 3 : 4)),
+        status,
+        description: desc,
+        skills_to_build: [track],
+        milestones,
+        project: null,
+        resources: []
+    };
+
+    currentSteps.push(newStep);
+    closeAddStepModal();
+    renderTimeline();
+    persistSequence();
+}
+
+// Reset Sequence back to default blueprint
+function resetSequence() {
+    if (!confirm(`Reset sequence back to default curriculum for ${currentBlueprint.role}? Any custom added steps will be cleared.`)) return;
+
+    currentSteps = JSON.parse(JSON.stringify(currentBlueprint.steps));
+    renderTimeline();
+    persistSequence();
+}
+
+// Calculate and update progress metrics and difficulty counters
+function updateProgress() {
+    const totalSteps = currentSteps.length;
+    const completedSteps = currentSteps.filter(s => s.status === 'Completed').length;
+
+    // Milestone / task level progress
+    let totalTasks = 0;
+    let completedTasks = 0;
+    
+    // Difficulty breakdown counters
+    const diffStats = {
+        Beginner: { total: 0, done: 0 },
+        Intermediate: { total: 0, done: 0 },
+        Advanced: { total: 0, done: 0 },
+        Expert: { total: 0, done: 0 }
+    };
+
+    currentSteps.forEach(step => {
+        const stepDiff = step.difficulty || 'Intermediate';
+        const ms = Array.isArray(step.milestones) ? step.milestones : [];
+        
+        ms.forEach(m => {
+            totalTasks++;
+            if (m.completed) completedTasks++;
+
+            const d = m.difficulty || stepDiff;
+            if (diffStats[d]) {
+                diffStats[d].total++;
+                if (m.completed) diffStats[d].done++;
+            }
+        });
+    });
+
+    // Calculate percentage: Weight tasks 70% and phase completion 30% if tasks exist
+    let percent = 0;
+    if (totalTasks > 0) {
+        const taskPct = (completedTasks / totalTasks) * 100;
+        const phasePct = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+        percent = Math.round(taskPct * 0.7 + phasePct * 0.3);
+    } else if (totalSteps > 0) {
+        percent = Math.round((completedSteps / totalSteps) * 100);
+    }
+
+    const percentEl = document.getElementById("progress-percent");
+    const countEl = document.getElementById("completed-steps-count");
+    const barEl = document.getElementById("progress-bar-fill");
+
+    if (percentEl) percentEl.textContent = `${percent}%`;
+    if (countEl) countEl.textContent = `${completedSteps}/${totalSteps}`;
+    if (barEl) barEl.style.width = `${percent}%`;
+
+    // Update difficulty counter stats pills
+    const begEl = document.getElementById("stat-beginner");
+    const intEl = document.getElementById("stat-intermediate");
+    const advEl = document.getElementById("stat-advanced");
+    const expEl = document.getElementById("stat-expert");
+
+    if (begEl) begEl.textContent = `Beg: ${diffStats.Beginner.done}/${diffStats.Beginner.total}`;
+    if (intEl) intEl.textContent = `Int: ${diffStats.Intermediate.done}/${diffStats.Intermediate.total}`;
+    if (advEl) advEl.textContent = `Adv: ${diffStats.Advanced.done}/${diffStats.Advanced.total}`;
+    if (expEl) expEl.textContent = `Exp: ${diffStats.Expert.done}/${diffStats.Expert.total}`;
+}
+
+// Persist sequence changes to localStorage and Supabase learning_roadmaps
+async function persistSequence(notify = false) {
+    if (!activeUser) return;
+
+    // 1. Save to local storage for instant offline capability
+    try {
+        localStorage.setItem(`mindurr_steps_${activeUser.id}_${currentGoalKey}`, JSON.stringify(currentSteps));
+        localStorage.setItem('mindurr_workspace_steps', JSON.stringify(currentSteps));
+        
+        // Also update cached roadmap
+        const cachedRoadmap = {
+            user_id: activeUser.id,
+            target_role: currentBlueprint.role,
+            target_industry: currentBlueprint.industry,
+            overall_gap_summary: currentBlueprint.gap_summary,
+            total_estimated_weeks: currentBlueprint.total_weeks,
+            status: currentSteps.every(s => s.status === 'Completed') ? 'completed' : 'in_progress',
+            steps: currentSteps,
+            updated_at: new Date().toISOString()
+        };
+        localStorage.setItem('mindurr_roadmap', JSON.stringify(cachedRoadmap));
+    } catch (e) {
+        console.warn('localStorage persist warning:', e);
+    }
+
+    // 2. Persist to Supabase learning_roadmaps table
+    try {
+        await supabaseClient
+            .from('learning_roadmaps')
+            .upsert({
+                user_id: activeUser.id,
+                target_role: currentBlueprint.role,
+                target_industry: currentBlueprint.industry,
+                overall_gap_summary: currentBlueprint.gap_summary,
+                total_estimated_weeks: currentBlueprint.total_weeks,
+                status: currentSteps.every(s => s.status === 'Completed') ? 'completed' : 'in_progress',
+                steps: currentSteps,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id' });
+    } catch (dbErr) {
+        console.warn('Supabase learning_roadmaps cloud sync warning:', dbErr);
+    }
+}
+
+</script>
+</body>
+</html>

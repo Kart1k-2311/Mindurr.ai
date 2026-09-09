@@ -1,20 +1,45 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-import os
-from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
-# 1. Load the secret vault (.env) from the folder above
-load_dotenv(dotenv_path="../.env")
+from database import get_admin_client
+from routes import router
+from config import SUPABASE_URL
 
-# 2. Get a specific secret to prove it works
-supabase_url = os.getenv("SUPABASE_URL")
 
-# 3. Initialize the FastAPI server
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    admin = get_admin_client()
+    app.state.supabase = admin
+    yield
 
-# 4. Create your first endpoint (a URL route)
+
+app = FastAPI(title="Mindurr.ai API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:5500",
+        "http://127.0.0.1:8080",
+        "null",  # allows local testing opened via file://
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+app.include_router(router)
+
+
 @app.get("/")
 def read_root():
     return {
-        "message": "Hello from the Python Backend!",
-        "database_url_loaded": supabase_url
+        "message": "Hello from the Mindurr.ai Python Backend!",
+        "database_url_loaded": SUPABASE_URL,
+        "docs": "/docs",
+        "status": "ready",
     }

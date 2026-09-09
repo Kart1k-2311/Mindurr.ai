@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=geist:wght@100..900&family=inter:wght@100..900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="vendor/supabase.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -63,42 +63,61 @@
 </head>
 <body class="bg-background font-body text-on-surface antialiased min-h-screen">
 
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-md border-b border-outline-variant/30">
+    <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+        <a class="flex items-center gap-2" href="index.html">
+            <span class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center p-1.5 shadow-sm">
+                <img alt="Mindurr Logo" src="mindurr_logo.svg" class="w-full h-full object-contain">
+            </span>
+            <span class="font-bold text-lg tracking-tight">Mindurr</span>
+        </a>
+        <div class="flex items-center gap-4">
+            <span id="user-email-header" class="text-xs font-bold uppercase tracking-widest text-primary"></span>
+            <button onclick="logout()" class="text-xs font-bold uppercase tracking-widest bg-inverse-surface text-white px-4 py-2 rounded-full hover:opacity-90 transition">Logout</button>
+        </div>
+    </div>
+</header>
+
 <main class="pt-24 pb-16 min-h-screen flex flex-col items-center px-6">
     <div class="w-full max-w-2xl">
-        <!-- Header -->
-        <div class="text-center mb-10">
-            <span class="text-[11px] font-bold text-primary tracking-widest uppercase block mb-2">Skill Profiling</span>
-            <h1 class="text-3xl font-extrabold tracking-tight" id="wizard-title">Select Your Industry</h1>
-            <p class="text-on-surface-variant mt-2 text-sm" id="wizard-subtitle">Choose the field you want to be assessed in.</p>
+        <div id="existing-profile-banner" class="hidden mb-6 p-4 rounded-xl bg-primary-container/20 border border-primary/30 flex items-center justify-between text-xs md:text-sm">
+            <div class="flex items-center gap-2 text-on-surface">
+                <span class="material-symbols-outlined text-primary text-base">info</span>
+                <span>You already have an active profile. Retaking this quiz will update your scores.</span>
+            </div>
+            <a href="profile.html" class="font-bold text-primary hover:underline ml-3 whitespace-nowrap">View Dashboard &rarr;</a>
         </div>
 
-        <!-- Progress Bar -->
+        <div class="text-center mb-10">
+            <span class="text-[11px] font-bold text-primary tracking-widest uppercase block mb-2">Skill Profiling</span>
+            <h1 class="text-3xl font-extrabold tracking-tight" id="wizard-title">What is your motivation?</h1>
+            <p class="text-on-surface-variant mt-2 text-sm" id="wizard-subtitle">Tell us why you are taking this assessment.</p>
+        </div>
+
         <div class="w-full bg-outline-variant/30 rounded-full h-2 mb-10">
             <div class="bg-primary-container h-2 rounded-full progress-fill" id="progress-bar" style="width: 25%"></div>
         </div>
 
-        <!-- Steps -->
+        <!-- Flow: Industry -> Goal -> Tech -> Quiz -->
         <div id="step-1" class="step-content">
             <div class="grid grid-cols-2 gap-4" id="industry-grid"></div>
         </div>
         <div id="step-2" class="step-content hidden">
-            <div class="grid grid-cols-2 gap-3" id="language-grid"></div>
-            <p class="text-xs text-on-surface-variant mt-4 text-center">Select at least one language you know.</p>
+            <div class="grid grid-cols-2 gap-4" id="goal-grid"></div>
         </div>
         <div id="step-3" class="step-content hidden">
             <div class="grid grid-cols-2 gap-3" id="tech-grid"></div>
-            <p class="text-xs text-on-surface-variant mt-4 text-center">Select at least one technology you're familiar with.</p>
+            <p class="text-xs text-on-surface-variant mt-4 text-center">Select the technologies you currently know.</p>
         </div>
         <div id="step-4" class="step-content hidden">
             <div id="assessment-container"></div>
             <div class="flex justify-between items-center mt-6">
-                <span class="text-sm text-on-surface-variant" id="question-counter">Question 1 of 25</span>
+                <span class="text-sm text-on-surface-variant" id="question-counter">Question 1 of 30</span>
                 <span class="text-sm font-bold text-primary" id="score-live">Score: 0/0</span>
             </div>
         </div>
         <div id="step-results" class="step-content hidden"></div>
 
-        <!-- Navigation -->
         <div class="flex justify-between mt-10" id="nav-buttons">
             <button class="btn-secondary hidden" id="prev-btn">Back</button>
             <button class="btn-primary ml-auto" id="next-btn" disabled>Next</button>
@@ -106,73 +125,318 @@
     </div>
 </main>
 
+<script src="config.js"></script>
+<script src="roadmap_engine.js"></script>
 <script>
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
+// STEP 1: Industry (Motivation)
 const INDUSTRIES = {
-    frontend: {
-        label: 'Frontend', icon: 'language', desc: 'Web UIs, components, browsers',
-        languages: ['JavaScript', 'TypeScript', 'HTML/CSS'],
-        technologies: {
-            'JavaScript': ['React', 'Vue.js', 'Angular', 'Next.js', 'Svelte'],
-            'TypeScript': ['React', 'Angular', 'Next.js'],
-            'HTML/CSS': ['Tailwind CSS', 'SASS/SCSS', 'Bootstrap']
-        }
+    job: { label: 'Get a Job', icon: 'badge', desc: 'Land a new role' },
+    career_switch: { label: 'Career Switch', icon: 'sync_alt', desc: 'Change your trajectory' },
+    upskill: { label: 'Upskill & Grow', icon: 'trending_up', desc: 'Level up existing skills' },
+    portfolio: { label: 'Build Portfolio', icon: 'folder_open', desc: 'Create impressive projects' },
+    freelance: { label: 'Freelancing', icon: 'work_history', desc: 'Start taking gigs' }
+};
+
+// STEP 2 & 3: Goals (Roles) and their specific Technologies
+const GOALS = {
+    frontend: { 
+        label: 'Frontend', icon: 'web', desc: 'UI/UX, React, browsers',
+        techs: ['HTML/CSS', 'JavaScript', 'TypeScript', 'React', 'Vue', 'Tailwind']
     },
-    backend: {
-        label: 'Backend', icon: 'dns', desc: 'APIs, servers, databases',
-        languages: ['Python', 'JavaScript', 'Java', 'Go', 'Rust'],
-        technologies: {
-            'Python': ['Django', 'FastAPI', 'Flask', 'Celery'],
-            'JavaScript': ['Express.js', 'NestJS', 'Fastify'],
-            'Java': ['Spring Boot', 'Micronaut'],
-            'Go': ['Gin', 'Echo', 'Fiber'],
-            'Rust': ['Actix Web', 'Axum']
-        }
+    backend: { 
+        label: 'Backend', icon: 'dns', desc: 'Servers, APIs, DBs',
+        techs: ['Node.js', 'Python', 'Java', 'SQL', 'MongoDB', 'Go']
     },
-    devops: {
-        label: 'DevOps', icon: 'cloud', desc: 'Infrastructure, CI/CD, containers',
-        languages: ['Python', 'Bash', 'Go'],
-        technologies: {
-            'Python': ['Docker', 'Kubernetes', 'Terraform', 'Ansible'],
-            'Bash': ['Docker', 'Linux Administration', 'CI/CD'],
-            'Go': ['Docker', 'Kubernetes', 'Terraform']
-        }
+    fullstack: { 
+        label: 'Full Stack', icon: 'terminal', desc: 'End-to-end development',
+        techs: ['JavaScript', 'React', 'Node.js', 'Python', 'SQL']
     },
-    data_science: {
-        label: 'Data Science', icon: 'analytics', desc: 'ML, stats, data pipelines',
-        languages: ['Python', 'R', 'SQL'],
-        technologies: {
-            'Python': ['Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch'],
-            'R': ['ggplot2', 'dplyr', 'Shiny'],
-            'SQL': ['PostgreSQL', 'MySQL', 'BigQuery']
-        }
+    devops: { 
+        label: 'DevOps', icon: 'cloud', desc: 'CI/CD, Cloud, Infrastructure',
+        techs: ['Docker', 'Kubernetes', 'AWS', 'Linux', 'Terraform', 'CI/CD']
     },
-    mobile: {
-        label: 'Mobile', icon: 'smartphone', desc: 'iOS, Android, cross-platform',
-        languages: ['JavaScript', 'Dart', 'Kotlin', 'Swift'],
-        technologies: {
-            'JavaScript': ['React Native', 'Expo'],
-            'Dart': ['Flutter'],
-            'Kotlin': ['Android Jetpack Compose'],
-            'Swift': ['SwiftUI', 'UIKit']
-        }
+    data_analyst: { 
+        label: 'Data Analyst', icon: 'bar_chart', desc: 'Data visualization, SQL',
+        techs: ['SQL', 'Python', 'Excel', 'Tableau', 'PowerBI', 'Pandas']
     },
-    fullstack: {
-        label: 'Full-Stack', icon: 'terminal', desc: 'End-to-end web development',
-        languages: ['JavaScript', 'TypeScript', 'Python'],
-        technologies: {
-            'JavaScript': ['React', 'Node.js', 'Express.js', 'Next.js'],
-            'TypeScript': ['React', 'Next.js', 'NestJS'],
-            'Python': ['Django', 'FastAPI', 'Flask']
-        }
+    ai_engineer: { 
+        label: 'AI Engineer', icon: 'psychology', desc: 'LLMs, GenAI, NLP',
+        techs: ['Python', 'PyTorch', 'OpenAI API', 'LangChain', 'Hugging Face']
+    },
+    machine_learning: { 
+        label: 'Machine Learning', icon: 'memory', desc: 'Models, algorithms',
+        techs: ['Python', 'TensorFlow', 'Scikit-Learn', 'Pandas', 'Mathematics']
+    },
+    cyber_security: { 
+        label: 'Cyber Security', icon: 'security', desc: 'Networks, ethical hacking',
+        techs: ['Linux', 'Networking', 'Python', 'Penetration Testing', 'Cryptography']
     }
 };
 
-let state = { step: 1, industry: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0 };
+// HARDCODED QUESTION BANK (Categorized by Goal)
+const QUESTION_BANK = {
+    frontend: [
+        { technology: "HTML/CSS", q: "What does HTML stand for?", options: ["Hyper Text Markup Language","High Text Machine Language","Hyperlink Text Management Language","Home Tool Markup Language"], answer: 0 },
+        { technology: "HTML/CSS", q: "Which HTML tag is used to create a hyperlink?", options: ["`<link>`","`<a>`","`<href>`","`<url>`"], answer: 1 },
+        { technology: "HTML/CSS", q: "Which CSS property is used to change text color?", options: ["`font-color`","`text-color`","`color`","`foreground`"], answer: 2 },
+        { technology: "HTML/CSS", q: "Which CSS layout system is primarily used for one-dimensional layouts?", options: ["Grid","Flexbox","Float","Position"], answer: 1 },
+        { technology: "HTML/CSS", q: "Which CSS layout system is designed for two-dimensional layouts?", options: ["Flexbox","Grid","Float","Inline-block"], answer: 1 },
+        { technology: "JavaScript", q: "Which JavaScript keyword declares a block-scoped variable that can be reassigned?", options: ["`var`","`let`","`const`","`static`"], answer: 1 },
+        { technology: "JavaScript", q: "What is the purpose of the DOM?", options: ["Store CSS files","Represent an HTML document as a tree of objects","Compile JavaScript","Manage databases"], answer: 1 },
+        { technology: "HTML/CSS", q: "Which method selects an HTML element by its ID?", options: ["`document.getElementById()`","`document.getElement()`","`document.selectId()`","`document.findId()`"], answer: 0 },
+        { technology: "JavaScript", q: "Which JavaScript method is commonly used to add an event listener?", options: ["`addEvent()`","`listen()`","`addEventListener()`","`onEvent()`"], answer: 2 },
+        { technology: "Tailwind", q: "What does responsive web design mean?", options: ["A website that loads only on mobile","A website that adapts to different screen sizes","A website with animated content","A website with no JavaScript"], answer: 1 },
+        { technology: "HTML/CSS", q: "Which CSS unit is relative to the root element's font size?", options: ["`em`","`%`","`rem`","`px`"], answer: 2 },
+        { technology: "HTML/CSS", q: "Which CSS property controls the space inside an element's border?", options: ["`margin`","`padding`","`spacing`","`border-spacing`"], answer: 1 },
+        { technology: "HTML/CSS", q: "Which CSS property controls the space outside an element's border?", options: ["`padding`","`margin`","`spacing`","`outside`"], answer: 1 },
+        { technology: "HTML/CSS", q: "What does `z-index` control in CSS?", options: ["Font size","Element transparency","Stacking order","Element width"], answer: 2 },
+        { technology: "HTML/CSS", q: "Which HTML element is most appropriate for the main navigation of a website?", options: ["`<navigation>`","`<nav>`","`<menu-bar>`","`<links>`"], answer: 1 },
+        { technology: "HTML/CSS", q: "What is semantic HTML?", options: ["HTML containing only JavaScript","HTML using elements that convey the meaning of their content","HTML without CSS","HTML generated dynamically"], answer: 1 },
+        { technology: "JavaScript", q: "Which attribute provides alternative text for an image?", options: ["`title`","`description`","`alt`","`src`"], answer: 2 },
+        { technology: "JavaScript", q: "What does API stand for?", options: ["Application Programming Interface","Application Process Integration","Automated Programming Interface","Advanced Program Instruction"], answer: 0 },
+        { technology: "JavaScript", q: "Which HTTP method is commonly used to retrieve data from a server?", options: ["POST","PUT","GET","PATCH"], answer: 2 },
+        { technology: "JavaScript", q: "Which JavaScript feature allows asynchronous code to be written in a more synchronous-looking style?", options: ["Classes","Async/Await","Prototypes","Hoisting"], answer: 1 },
+        { technology: "JavaScript", q: "What does JSON commonly represent?", options: ["A programming language","A data-interchange format","A CSS framework","A database engine"], answer: 1 },
+        { technology: "JavaScript", q: "Which method converts a JSON string into a JavaScript object?", options: ["`JSON.parse()`","`JSON.convert()`","`JSON.object()`","`JSON.decodeObject()`"], answer: 0 },
+        { technology: "JavaScript", q: "Which method converts a JavaScript object into a JSON string?", options: ["`JSON.toString()`","`JSON.stringify()`","`JSON.convert()`","`JSON.encode()`"], answer: 1 },
+        { technology: "JavaScript", q: "What is event bubbling in JavaScript?", options: ["Events moving from parent to child","Events propagating from a target element toward its ancestors","Events being deleted","Events being delayed"], answer: 1 },
+        { technology: "JavaScript", q: "What is the purpose of browser developer tools?", options: ["Design databases","Debug and inspect web applications","Create operating systems","Compile backend code"], answer: 1 },
+        { technology: "Tailwind", q: "Which technology is primarily used for styling web pages?", options: ["HTML","CSS","SQL","Python"], answer: 1 },
+        { technology: "JavaScript", q: "What is a JavaScript Promise used for?", options: ["Styling elements","Representing the eventual completion or failure of an asynchronous operation","Creating HTML elements only","Managing CSS animations"], answer: 1 },
+        { technology: "React", q: "What is React primarily used for?", options: ["Database management","Building user interfaces","Server hardware management","Operating system development"], answer: 1 },
+        { technology: "JavaScript", q: "What is accessibility in web development?", options: ["Making websites accessible only through mobile devices","Designing websites that can be used by people with different abilities","Increasing website animations","Preventing search engines from indexing a site"], answer: 1 },
+        { technology: "JavaScript", q: "Which practice generally improves frontend performance?", options: ["Loading unnecessary large images","Minifying and optimizing assets","Adding unused JavaScript libraries","Loading every resource synchronously"], answer: 1 },
+    ],
+    backend: [
+        { technology: "Node.js", q: "What is the primary responsibility of a backend developer?", options: ["Designing logos","Building server-side logic and APIs","Creating UI animations","Designing wireframes"], answer: 1 },
+        { technology: "Node.js", q: "What does an API stand for?", options: ["Application Programming Interface","Application Process Integration","Automated Program Interface","Application Protocol Instruction"], answer: 0 },
+        { technology: "Node.js", q: "Which HTTP method is generally used to retrieve data?", options: ["POST","GET","DELETE","PATCH"], answer: 1 },
+        { technology: "Node.js", q: "Which HTTP method is commonly used to create a new resource?", options: ["GET","DELETE","POST","HEAD"], answer: 2 },
+        { technology: "Node.js", q: "Which HTTP status code means \"Not Found\"?", options: ["200","201","404","500"], answer: 2 },
+        { technology: "Node.js", q: "What does HTTP status code 500 generally indicate?", options: ["Successful request","Client-side redirect","Server-side error","Resource created"], answer: 2 },
+        { technology: "Node.js", q: "What is REST?", options: ["A database language","An architectural style for designing networked APIs","A programming language","A frontend framework"], answer: 1 },
+        { technology: "Node.js", q: "Which data format is commonly used when exchanging data through REST APIs?", options: ["JSON","PSD","EXE","MP3"], answer: 0 },
+        { technology: "Node.js", q: "What is middleware?", options: ["Hardware between two servers","Software that processes requests between components of an application","A database table","A frontend stylesheet"], answer: 1 },
+        { technology: "Python", q: "What is authentication?", options: ["Determining what a user is allowed to do","Verifying a user's identity","Encrypting a database","Creating a server"], answer: 1 },
+        { technology: "Python", q: "What is authorization?", options: ["Verifying identity","Determining what an authenticated user is permitted to access","Encrypting passwords","Creating an API"], answer: 1 },
+        { technology: "Python", q: "Why should passwords be hashed before being stored?", options: ["To make them shorter","To protect them from being stored as plaintext","To make login faster","To convert them to JSON"], answer: 1 },
+        { technology: "Python", q: "Which algorithm is commonly recommended for password hashing?", options: ["bcrypt","MD5","Base64","ROT13"], answer: 0 },
+        { technology: "SQL", q: "What is SQL injection?", options: ["A database backup technique","An attack that manipulates SQL queries through untrusted input","A method of compressing SQL","A database indexing strategy"], answer: 1 },
+        { technology: "SQL", q: "Which technique helps prevent SQL injection?", options: ["Using parameterized queries","Using longer URLs","Disabling CSS","Increasing server RAM"], answer: 0 },
+        { technology: "SQL", q: "What is a database index used for?", options: ["Encrypting a database","Improving the speed of certain queries","Creating backups","Removing duplicate databases"], answer: 1 },
+        { technology: "Node.js", q: "What does CRUD stand for?", options: ["Create, Read, Update, Delete","Connect, Run, Update, Deploy","Create, Run, Upload, Download","Copy, Read, Upload, Delete"], answer: 0 },
+        { technology: "Node.js", q: "Which database is relational?", options: ["PostgreSQL","MongoDB","Redis","Neo4j"], answer: 0 },
+        { technology: "SQL", q: "Which database is commonly classified as a document-oriented NoSQL database?", options: ["PostgreSQL","MySQL","MongoDB","SQLite"], answer: 2 },
+        { technology: "SQL", q: "What is a database transaction?", options: ["A server restart","A sequence of operations treated as a single logical unit","A frontend request","A network connection"], answer: 1 },
+        { technology: "SQL", q: "What does ACID in database systems stand for?", options: ["Atomicity, Consistency, Isolation, Durability","Access, Control, Integration, Data","Authentication, Caching, Indexing, Distribution","Availability, Consistency, Integration, Deployment"], answer: 0 },
+        { technology: "Java", q: "What is caching?", options: ["Permanently deleting data","Storing frequently accessed data for faster retrieval","Encrypting every request","Creating database schemas"], answer: 1 },
+        { technology: "Node.js", q: "Which technology is commonly used as an in-memory cache?", options: ["Redis","HTML","Nginx","Git"], answer: 0 },
+        { technology: "Java", q: "What is a load balancer used for?", options: ["Distributing traffic across multiple servers","Encrypting passwords","Designing APIs","Managing database schemas"], answer: 0 },
+        { technology: "Go", q: "What is a WebSocket primarily useful for?", options: ["Static HTML generation","Persistent, two-way real-time communication","Database normalization","Image compression"], answer: 1 },
+        { technology: "Go", q: "What is a queue commonly used for in backend systems?", options: ["Processing asynchronous tasks","Styling web pages","Creating CSS animations","Designing database tables only"], answer: 0 },
+        { technology: "Java", q: "What is logging used for?", options: ["Tracking application events and diagnosing problems","Increasing image quality","Creating user interfaces","Replacing databases"], answer: 0 },
+        { technology: "Node.js", q: "What is environment configuration commonly used for?", options: ["Storing application-specific settings such as database credentials and API configuration","Creating HTML layouts","Drawing icons","Compressing JavaScript"], answer: 0 },
+        { technology: "Java", q: "What is Docker commonly used for?", options: ["Creating vector graphics","Packaging and running applications in containers","Designing databases visually","Writing CSS"], answer: 1 },
+        { technology: "Go", q: "What is horizontal scaling?", options: ["Increasing the CPU/RAM of one server","Adding more servers or instances to handle increased load","Reducing database size","Removing API endpoints"], answer: 1 },
+    ],
+    fullstack: [
+        { technology: "Python", q: "What does a full-stack developer typically work with?", options: ["Only databases","Only frontend","Frontend, backend, and databases","Only DevOps"], answer: 2 },
+        { technology: "Python", q: "Which technology is primarily responsible for the structure of a web page?", options: ["CSS","HTML","JavaScript","SQL"], answer: 1 },
+        { technology: "React", q: "Which technology is primarily used to style web pages?", options: ["HTML","CSS","SQL","Python"], answer: 1 },
+        { technology: "JavaScript", q: "Which language is commonly used to add interactivity to web pages?", options: ["JavaScript","SQL","HTML","XML"], answer: 0 },
+        { technology: "Node.js", q: "What is the purpose of a backend server?", options: ["Only display buttons","Process requests, execute business logic, and communicate with data stores","Design images","Change CSS colors"], answer: 1 },
+        { technology: "Node.js", q: "What does REST API refer to?", options: ["A database engine","An architectural style for network APIs","A CSS framework","A programming language"], answer: 1 },
+        { technology: "Node.js", q: "Which HTTP method is generally used to retrieve a resource?", options: ["GET","POST","DELETE","PATCH"], answer: 0 },
+        { technology: "Node.js", q: "Which HTTP method is generally used to create a resource?", options: ["GET","POST","DELETE","HEAD"], answer: 1 },
+        { technology: "Node.js", q: "What does a 200 HTTP status code indicate?", options: ["Server error","Not found","Successful request","Unauthorized"], answer: 2 },
+        { technology: "Node.js", q: "What does a 404 HTTP status code mean?", options: ["Success","Resource not found","Server started","Unauthorized"], answer: 1 },
+        { technology: "SQL", q: "Which of the following is a relational database?", options: ["PostgreSQL","MongoDB","Redis","Elasticsearch"], answer: 0 },
+        { technology: "SQL", q: "What is SQL primarily used for?", options: ["Styling websites","Querying and manipulating relational databases","Creating animations","Managing Git repositories"], answer: 1 },
+        { technology: "SQL", q: "What does CRUD stand for?", options: ["Create, Read, Update, Delete","Create, Run, Upload, Download","Connect, Read, Update, Deploy","Copy, Run, Update, Delete"], answer: 0 },
+        { technology: "SQL", q: "What is a primary key?", options: ["A password for a database","A column or set of columns that uniquely identifies a record","A database backup","An API key"], answer: 1 },
+        { technology: "JavaScript", q: "What is Git used for?", options: ["Database hosting","Version control","Web hosting only","Image editing"], answer: 1 },
+        { technology: "JavaScript", q: "Which Git command creates a local copy of an existing repository?", options: ["`git push`","`git clone`","`git merge`","`git reset`"], answer: 1 },
+        { technology: "JavaScript", q: "Which Git command sends local commits to a remote repository?", options: ["`git pull`","`git fetch`","`git push`","`git clone`"], answer: 2 },
+        { technology: "JavaScript", q: "What is authentication?", options: ["Determining user permissions","Verifying a user's identity","Encrypting a database","Creating a server"], answer: 1 },
+        { technology: "JavaScript", q: "What is authorization?", options: ["Verifying identity","Determining what an authenticated user can access or perform","Hashing passwords","Creating a session"], answer: 1 },
+        { technology: "JavaScript", q: "What is JWT commonly used for?", options: ["Image compression","Representing claims between parties, often for authentication","Styling web pages","Database indexing"], answer: 1 },
+        { technology: "JavaScript", q: "What is CORS?", options: ["A database language","A browser security mechanism controlling cross-origin requests","A JavaScript framework","A server operating system"], answer: 1 },
+        { technology: "Python", q: "What is responsive design?", options: ["Designing only for desktops","Designing interfaces that adapt to different screen sizes and devices","Using only JavaScript","Removing mobile support"], answer: 1 },
+        { technology: "Python", q: "What is an ORM?", options: ["Object-Relational Mapping","Online Resource Manager","Object Request Module","Operational Runtime Manager"], answer: 0 },
+        { technology: "Node.js", q: "What is middleware in a web application?", options: ["Software that can process requests between the client and final request handler","A database table","A CSS property","A browser extension"], answer: 0 },
+        { technology: "Python", q: "What is caching used for?", options: ["Increasing database errors","Storing frequently accessed data for faster retrieval","Deleting old data","Encrypting passwords"], answer: 1 },
+        { technology: "Python", q: "What is Docker commonly used for?", options: ["Creating UI designs","Containerizing applications and their dependencies","Writing SQL queries","Editing images"], answer: 1 },
+        { technology: "Python", q: "What is CI/CD?", options: ["Continuous Integration and Continuous Delivery/Deployment","Code Installation and Code Deletion","Client Integration and Client Development","Continuous Interface and Continuous Database"], answer: 0 },
+        { technology: "Python", q: "What is the purpose of input validation?", options: ["Make applications slower","Ensure incoming data meets expected rules and reduce invalid or unsafe input","Increase database size","Remove authentication"], answer: 1 },
+        { technology: "SQL", q: "Which approach helps prevent SQL injection?", options: ["String concatenation","Parameterized queries","Disabling HTTPS","Storing passwords in plaintext"], answer: 1 },
+        { technology: "Python", q: "Which is the best description of a full-stack developer?", options: ["Someone who only writes CSS","Someone who works across multiple layers of an application, including frontend and backend","Someone who only manages servers","Someone who only designs databases"], answer: 1 },
+    ],
+    devops: [
+        { technology: "CI/CD", q: "What does DevOps combine?", options: ["Development and Operations","Design and Testing","Database and Security","Development and Marketing"], answer: 0 },
+        { technology: "CI/CD", q: "What is CI/CD?", options: ["Code Integration/Code Deployment","Continuous Integration/Continuous Delivery or Deployment","Computer Integration/Computer Development","Continuous Inspection/Continuous Debugging"], answer: 1 },
+        { technology: "CI/CD", q: "Which tool is commonly used for CI/CD pipelines?", options: ["Jenkins","Photoshop","Figma","MySQL"], answer: 0 },
+        { technology: "Docker", q: "What is Docker primarily used for?", options: ["Database design","Containerization","UI development","Network routing"], answer: 1 },
+        { technology: "Kubernetes", q: "What is Kubernetes primarily used for?", options: ["Managing containerized applications","Writing JavaScript","Creating databases","Designing websites"], answer: 0 },
+        { technology: "Terraform", q: "What is Infrastructure as Code (IaC)?", options: ["Writing infrastructure configuration as code","Writing frontend code","Creating documentation","Building hardware"], answer: 0 },
+        { technology: "Terraform", q: "Which tool is commonly associated with Infrastructure as Code?", options: ["Terraform","Figma","React","Excel"], answer: 0 },
+        { technology: "CI/CD", q: "What is Ansible commonly used for?", options: ["Configuration management and automation","Image editing","Database querying","UI design"], answer: 0 },
+        { technology: "Docker", q: "What is a container?", options: ["A lightweight isolated environment for running applications","A physical server","A database table","A network cable"], answer: 0 },
+        { technology: "Docker", q: "What is a Docker image?", options: ["A template used to create containers","A screenshot","A database backup","A virtual machine"], answer: 0 },
+        { technology: "CI/CD", q: "What is version control used for?", options: ["Tracking changes to code and files","Monitoring CPU temperature only","Encrypting databases","Designing interfaces"], answer: 0 },
+        { technology: "CI/CD", q: "Which tool is widely used for version control?", options: ["Git","Docker","Kubernetes","Jenkins"], answer: 0 },
+        { technology: "CI/CD", q: "What does `git pull` generally do?", options: ["Uploads local changes","Retrieves and integrates changes from a remote repository","Deletes a repository","Creates a Docker image"], answer: 1 },
+        { technology: "CI/CD", q: "What is monitoring in DevOps?", options: ["Observing system health and performance","Writing application code","Designing logos","Creating database tables"], answer: 0 },
+        { technology: "CI/CD", q: "Which tool is commonly used for metrics monitoring?", options: ["Prometheus","Git","Docker","Maven"], answer: 0 },
+        { technology: "CI/CD", q: "Which tool is commonly used for dashboards and visualization?", options: ["Grafana","Git","Terraform","Ansible"], answer: 0 },
+        { technology: "CI/CD", q: "What is logging?", options: ["Recording application and system events","Compressing files","Creating containers","Writing HTML"], answer: 0 },
+        { technology: "CI/CD", q: "What is horizontal scaling?", options: ["Adding more instances/servers","Increasing RAM on one server","Removing servers","Reducing CPU usage"], answer: 0 },
+        { technology: "CI/CD", q: "What is vertical scaling?", options: ["Adding more servers","Increasing resources of an existing server","Creating more containers","Adding users"], answer: 1 },
+        { technology: "CI/CD", q: "What is a load balancer used for?", options: ["Distributing traffic among servers","Encrypting passwords","Building Docker images","Writing code"], answer: 0 },
+        { technology: "CI/CD", q: "What is blue-green deployment?", options: ["Running two production environments and switching traffic between them","Deploying only on weekends","Deploying without testing","Deploying to two programming languages"], answer: 0 },
+        { technology: "CI/CD", q: "What is a rolling deployment?", options: ["Updating instances gradually rather than all at once","Deleting all servers","Deploying only once","Rebuilding a database"], answer: 0 },
+        { technology: "CI/CD", q: "What is a rollback?", options: ["Reverting to a previous version","Deleting Git","Increasing server capacity","Creating a new database"], answer: 0 },
+        { technology: "CI/CD", q: "What is a secrets manager used for?", options: ["Securely storing sensitive credentials and secrets","Storing images","Writing code","Monitoring CPU"], answer: 0 },
+        { technology: "AWS", q: "What is cloud computing?", options: ["On-demand computing resources delivered over a network","Local-only computing","Writing code without a computer","A programming language"], answer: 0 },
+        { technology: "AWS", q: "Which is a major cloud platform?", options: ["AWS","Git","Linux","Jenkins"], answer: 0 },
+        { technology: "CI/CD", q: "What is a health check?", options: ["A mechanism for determining whether a service is functioning correctly","A database query","A Git command","A Docker image"], answer: 0 },
+        { technology: "CI/CD", q: "What is immutable infrastructure?", options: ["Replacing infrastructure rather than modifying existing instances in place","Infrastructure that cannot be monitored","Infrastructure without servers","A database system"], answer: 0 },
+        { technology: "CI/CD", q: "What is DevOps automation intended to achieve?", options: ["Reduce repetitive manual work and improve consistency","Eliminate testing","Remove version control","Increase manual deployment"], answer: 0 },
+        { technology: "CI/CD", q: "What is the primary goal of DevOps?", options: ["Faster and more reliable software delivery through collaboration and automation","Eliminate developers","Only manage databases","Only design websites"], answer: 0 },
+    ],
+    data_analyst: [
+        { technology: "Python", q: "What is the primary role of a data analyst?", options: ["Analyze data to generate insights","Build computer hardware","Design websites","Manage network cables"], answer: 0 },
+        { technology: "Python", q: "What is structured data?", options: ["Data organized in a defined format such as rows and columns","Random images","Audio files only","Unformatted text only"], answer: 0 },
+        { technology: "SQL", q: "Which language is commonly used to query relational databases?", options: ["SQL","HTML","CSS","JavaScript"], answer: 0 },
+        { technology: "SQL", q: "Which SQL command retrieves data?", options: ["SELECT","DELETE","DROP","CREATE"], answer: 0 },
+        { technology: "SQL", q: "Which SQL clause filters rows?", options: ["WHERE","ORDER BY","GROUP BY","JOIN"], answer: 0 },
+        { technology: "SQL", q: "Which SQL clause sorts query results?", options: ["SORT","ORDER BY","ARRANGE","SORT BY"], answer: 1 },
+        { technology: "SQL", q: "What does `COUNT()` do in SQL?", options: ["Counts rows or values","Adds numbers","Sorts data","Deletes records"], answer: 0 },
+        { technology: "SQL", q: "What is a JOIN used for?", options: ["Combining related data from multiple tables","Deleting tables","Creating charts","Encrypting data"], answer: 0 },
+        { technology: "SQL", q: "What is a primary key?", options: ["A unique identifier for a record","A password","A chart title","A calculated average"], answer: 0 },
+        { technology: "Python", q: "What is data cleaning?", options: ["Identifying and correcting inaccurate, inconsistent, or incomplete data","Deleting all data","Encrypting data","Creating backups"], answer: 0 },
+        { technology: "Python", q: "What is a missing value?", options: ["A data field with no recorded value","A duplicate row","A database password","A calculated field"], answer: 0 },
+        { technology: "Python", q: "What is an outlier?", options: ["An observation that is unusually far from the rest of the data","The average value","A duplicate record","A database table"], answer: 0 },
+        { technology: "Python", q: "What is the mean?", options: ["Sum divided by number of observations","Most frequent value","Middle value","Largest value"], answer: 0 },
+        { technology: "Python", q: "What is the median?", options: ["Middle value when data is ordered","Average of all values","Most frequent value","Smallest value"], answer: 0 },
+        { technology: "Python", q: "What is the mode?", options: ["Most frequently occurring value","Middle value","Average value","Largest value"], answer: 0 },
+        { technology: "Python", q: "What is standard deviation?", options: ["A measure of dispersion around the mean","A measure of the maximum value","A database function","A chart type"], answer: 0 },
+        { technology: "Python", q: "What is correlation?", options: ["A measure of association between variables","Proof that one variable causes another","A database operation","A data-cleaning method"], answer: 0 },
+        { technology: "Python", q: "Does correlation necessarily imply causation?", options: ["Yes","No","Only for large datasets","Only for SQL data"], answer: 1 },
+        { technology: "PowerBI", q: "What is data visualization?", options: ["Representing data graphically to communicate patterns and insights","Encrypting data","Deleting data","Storing data"], answer: 0 },
+        { technology: "Tableau", q: "Which chart is commonly useful for showing trends over time?", options: ["Line chart","Pie chart","Scatter plot only","Histogram only"], answer: 0 },
+        { technology: "PowerBI", q: "Which chart is useful for comparing categories?", options: ["Bar chart","Line chart only","Area map","Histogram only"], answer: 0 },
+        { technology: "Tableau", q: "What is a histogram used to show?", options: ["Distribution of numerical data","Database relationships","Website navigation","Network traffic"], answer: 0 },
+        { technology: "Python", q: "What is an KPI?", options: ["Key Performance Indicator","Key Programming Interface","Known Process Index","Key Processing Input"], answer: 0 },
+        { technology: "Tableau", q: "What is a dashboard?", options: ["A visual interface for monitoring important metrics and information","A database server","A programming language","A Git repository"], answer: 0 },
+        { technology: "Excel", q: "Which tool is widely used for spreadsheet-based data analysis?", options: ["Microsoft Excel","Docker","Kubernetes","Git"], answer: 0 },
+        { technology: "Pandas", q: "Which Python library is widely used for tabular data analysis?", options: ["pandas","Flask","Django","Pygame"], answer: 0 },
+        { technology: "Pandas", q: "What is exploratory data analysis (EDA)?", options: ["Investigating data to discover patterns, anomalies, and relationships","Deploying a web application","Encrypting a database","Building hardware"], answer: 0 },
+        { technology: "Pandas", q: "What is data aggregation?", options: ["Combining data into summaries such as totals or averages","Deleting records","Encrypting data","Creating passwords"], answer: 0 },
+        { technology: "Python", q: "What is sampling?", options: ["Selecting a subset of a population for analysis","Removing all data","Sorting a database","Creating a dashboard"], answer: 0 },
+        { technology: "Python", q: "What is the purpose of data analysis?", options: ["Turn raw data into useful insights for decision-making","Store passwords","Build computer networks","Design websites"], answer: 0 },
+    ],
+    ai_engineer: [
+        { technology: "Python", q: "What is the primary role of an AI engineer?", options: ["Build and integrate AI systems into applications","Design computer hardware only","Create logos","Manage office networks only"], answer: 0 },
+        { technology: "Python", q: "What is Artificial Intelligence?", options: ["Systems designed to perform tasks that typically require human intelligence","A database language","A web browser","A type of hardware"], answer: 0 },
+        { technology: "Python", q: "What is machine learning?", options: ["A subset of AI where systems learn patterns from data","Manual programming of every possible output","Database administration","Web development"], answer: 0 },
+        { technology: "PyTorch", q: "What is deep learning?", options: ["Machine learning using multi-layer neural networks","Database optimization","Network security","Web design"], answer: 0 },
+        { technology: "PyTorch", q: "What is a neural network?", options: ["A computational model inspired by interconnected neurons","A physical network cable","A database","A web server"], answer: 0 },
+        { technology: "Python", q: "What is training data?", options: ["Data used to train a machine learning model","Data used only for backups","Server configuration","User passwords"], answer: 0 },
+        { technology: "PyTorch", q: "What is inference?", options: ["Using a trained model to produce predictions or outputs","Training a database","Cleaning a server","Writing HTML"], answer: 0 },
+        { technology: "PyTorch", q: "What is a model parameter?", options: ["A value learned or adjusted during model training","A user password","A database table","An API endpoint"], answer: 0 },
+        { technology: "OpenAI API", q: "What is an AI model's context window?", options: ["The amount of input information a model can process within a given interaction","A computer monitor","A database index","A training server"], answer: 0 },
+        { technology: "Hugging Face", q: "What is NLP?", options: ["Natural Language Processing","Neural Logic Programming","Network Language Protocol","Natural Learning Program"], answer: 0 },
+        { technology: "Hugging Face", q: "What is computer vision?", options: ["AI techniques for understanding images and video","Designing computer monitors","Database visualization","Network monitoring"], answer: 0 },
+        { technology: "OpenAI API", q: "What is an LLM?", options: ["Large Language Model","Long Learning Machine","Logical Language Module","Large Learning Memory"], answer: 0 },
+        { technology: "OpenAI API", q: "What is a token in language models?", options: ["A unit of text processed by a model","A database password","A server","A programming language"], answer: 0 },
+        { technology: "OpenAI API", q: "What is prompt engineering?", options: ["Designing effective inputs/instructions for AI models","Building physical processors","Creating databases","Writing network protocols"], answer: 0 },
+        { technology: "LangChain", q: "What is RAG?", options: ["Retrieval-Augmented Generation","Random AI Generation","Recursive Algorithmic Graph","Retrieval Analysis Gateway"], answer: 0 },
+        { technology: "LangChain", q: "What is the purpose of RAG?", options: ["Retrieve relevant external information to help generate a response","Train a CPU","Compress images","Replace databases completely"], answer: 0 },
+        { technology: "LangChain", q: "What is an embedding?", options: ["A numerical representation of data such as text","A database password","An HTML element","A Docker container"], answer: 0 },
+        { technology: "LangChain", q: "What is a vector database commonly used for?", options: ["Storing and searching vector embeddings","Hosting websites only","Compiling JavaScript","Managing operating systems"], answer: 0 },
+        { technology: "OpenAI API", q: "What is hallucination in generative AI?", options: ["A model generating inaccurate or unsupported information","A server crash","A database failure","An image format"], answer: 0 },
+        { technology: "Hugging Face", q: "What is fine-tuning?", options: ["Further training a pretrained model on task-specific data","Compressing an image","Creating a database","Changing a server's CPU"], answer: 0 },
+        { technology: "Hugging Face", q: "What is transfer learning?", options: ["Reusing knowledge from a pretrained model for another task","Moving files between servers","Transferring database ownership","Copying source code"], answer: 0 },
+        { technology: "PyTorch", q: "Why are GPUs commonly used for AI workloads?", options: ["They can perform many parallel numerical computations efficiently","They are required for HTML","They replace databases","They only store files"], answer: 0 },
+        { technology: "Python", q: "What is model evaluation?", options: ["Measuring how well a model performs using defined metrics or tests","Designing a website","Creating a database","Installing an operating system"], answer: 0 },
+        { technology: "Python", q: "What is latency in an AI application?", options: ["Time taken to produce a response or complete an operation","Amount of training data","Model accuracy","Number of parameters"], answer: 0 },
+        { technology: "OpenAI API", q: "What is an AI API?", options: ["An interface that allows applications to interact with an AI service or model","A database table","A graphics card","A programming language"], answer: 0 },
+        { technology: "Python", q: "What is responsible AI?", options: ["Developing and deploying AI with attention to safety, fairness, privacy, transparency, and accountability","Making AI faster only","Removing human oversight","Using only open-source models"], answer: 0 },
+        { technology: "Python", q: "What is model deployment?", options: ["Making a trained model available for real-world use","Deleting the model","Collecting passwords","Designing a UI"], answer: 0 },
+        { technology: "Python", q: "What is model drift?", options: ["A change in real-world data patterns that can reduce model performance over time","A network cable problem","A programming syntax error","A database backup"], answer: 0 },
+        { technology: "Hugging Face", q: "What is multimodal AI?", options: ["AI that can process or generate multiple types of data such as text, images, or audio","AI using multiple servers only","AI using multiple databases","AI without machine learning"], answer: 0 },
+        { technology: "Python", q: "Which skill is especially important for an AI engineer?", options: ["Combining software engineering with AI/ML knowledge","Only graphic design","Only hardware repair","Only technical writing"], answer: 0 },
+    ],
+    machine_learning: [
+        { technology: "Python", q: "What is machine learning?", options: ["A method where computers learn patterns from data","Manual coding of every output","Database administration","Web design"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is supervised learning?", options: ["Learning from labeled training data","Learning without data","Learning only from images","Manual programming"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is unsupervised learning?", options: ["Learning patterns from data without labeled target outputs","Learning from labeled data only","Manual classification","Database programming"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is reinforcement learning?", options: ["Learning through interactions using rewards or penalties","Learning only from spreadsheets","Learning from SQL queries","Learning without feedback"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is classification?", options: ["Predicting a category or class","Predicting only continuous numbers","Sorting files alphabetically","Removing duplicates"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is regression?", options: ["Predicting a continuous numerical value","Predicting categories only","Grouping data without labels","Encrypting data"], answer: 0 },
+        { technology: "Scikit-Learn", q: "Which is an example of classification?", options: ["Predicting whether an email is spam","Predicting house price","Predicting temperature","Predicting revenue amount"], answer: 0 },
+        { technology: "Scikit-Learn", q: "Which is an example of regression?", options: ["Predicting house price","Detecting spam vs. non-spam","Identifying animal species","Classifying customers"], answer: 0 },
+        { technology: "Python", q: "What is overfitting?", options: ["A model performs very well on training data but poorly on unseen data","A model cannot learn training data","A model has no parameters","A dataset has no features"], answer: 0 },
+        { technology: "Python", q: "What is underfitting?", options: ["A model is too simple to capture important patterns in the data","A model memorizes training data","A model has too many features","A model has perfect accuracy"], answer: 0 },
+        { technology: "Pandas", q: "What is a feature?", options: ["An input variable used by a machine learning model","The model's output only","A database server","A programming language"], answer: 0 },
+        { technology: "Python", q: "What is a target variable?", options: ["The value a supervised learning model aims to predict","A feature used as input","A database key","A model parameter only"], answer: 0 },
+        { technology: "Python", q: "What is a training set?", options: ["Data used to train a model","Data used only for final evaluation","Production logs","Database configuration"], answer: 0 },
+        { technology: "Python", q: "What is a test set?", options: ["Data used to evaluate a model on unseen examples","Data used to train the model","Data used to create features only","Data used for backups"], answer: 0 },
+        { technology: "Python", q: "Why is a validation set used?", options: ["To help tune models and hyperparameters during development","To replace all training data","To store passwords","To deploy a model"], answer: 0 },
+        { technology: "Python", q: "What is cross-validation?", options: ["Repeatedly training and validating across different splits of the data","Encrypting training data","Combining databases","Removing outliers"], answer: 0 },
+        { technology: "Mathematics", q: "What is accuracy?", options: ["Proportion of predictions that are correct","Number of features","Training time","Model size"], answer: 0 },
+        { technology: "Mathematics", q: "What is precision?", options: ["Of predicted positives, the proportion that are actually positive","Of actual positives, the proportion detected","Overall correctness","Number of training samples"], answer: 0 },
+        { technology: "Mathematics", q: "What is recall?", options: ["Of actual positives, the proportion correctly identified","Of predicted positives, the proportion correct","Overall accuracy","Number of false positives only"], answer: 0 },
+        { technology: "Mathematics", q: "What is an F1 score?", options: ["Harmonic mean of precision and recall","Average of accuracy and recall","Number of features","Training loss"], answer: 0 },
+        { technology: "Mathematics", q: "What is a confusion matrix?", options: ["A table showing classification prediction outcomes","A neural network","A database table","A feature-selection algorithm"], answer: 0 },
+        { technology: "Pandas", q: "What is normalization?", options: ["Scaling values to a specified range or scale","Removing all features","Creating labels","Increasing dataset size"], answer: 0 },
+        { technology: "Pandas", q: "What is standardization?", options: ["Transforming a feature to have a specified mean and standard deviation, commonly mean 0 and standard deviation 1","Deleting outliers","Encoding categories","Creating a database"], answer: 0 },
+        { technology: "Pandas", q: "What is feature engineering?", options: ["Creating or transforming input features to improve model performance","Building computer hardware","Deploying a website","Creating database backups"], answer: 0 },
+        { technology: "TensorFlow", q: "What is a hyperparameter?", options: ["A configuration value set before or during model training rather than learned directly from the training data","A value always learned by the model","A database password","A target variable"], answer: 0 },
+        { technology: "TensorFlow", q: "What is gradient descent?", options: ["An optimization algorithm used to minimize a loss function","A database algorithm","A classification metric","A data-cleaning method"], answer: 0 },
+        { technology: "TensorFlow", q: "What is a loss function?", options: ["A function measuring how far model predictions are from desired outputs","A function that deletes data","A database function","A deployment tool"], answer: 0 },
+        { technology: "TensorFlow", q: "What is regularization?", options: ["A technique used to reduce overfitting by constraining model complexity","Increasing model complexity without limits","Removing the test set","Increasing training errors intentionally"], answer: 0 },
+        { technology: "Scikit-Learn", q: "What is clustering?", options: ["Grouping similar data points without predefined labels","Predicting a continuous value","Classifying labeled data","Removing duplicate rows"], answer: 0 },
+        { technology: "Python", q: "What is the purpose of a machine learning model?", options: ["Learn patterns from data and use them to make predictions or decisions","Store files only","Replace databases","Create HTML pages"], answer: 0 },
+    ],
+    cyber_security: [
+        { technology: "Python", q: "What is cybersecurity?", options: ["Protecting systems, networks, applications, and data from threats","Designing websites","Creating databases","Managing office documents"], answer: 0 },
+        { technology: "Linux", q: "What are the three components of the CIA triad?", options: ["Confidentiality, Integrity, Availability","Control, Internet, Authentication","Confidentiality, Internet, Access","Control, Integrity, Authentication"], answer: 0 },
+        { technology: "Linux", q: "What is confidentiality?", options: ["Preventing unauthorized access to information","Ensuring systems are always online","Preventing data modification only","Backing up data"], answer: 0 },
+        { technology: "Linux", q: "What is integrity?", options: ["Ensuring data is accurate and has not been improperly altered","Keeping systems online","Encrypting every file","Preventing all network traffic"], answer: 0 },
+        { technology: "Linux", q: "What is availability?", options: ["Ensuring authorized users can access systems and data when needed","Hiding passwords","Encrypting data","Removing network access"], answer: 0 },
+        { technology: "Python", q: "What is authentication?", options: ["Verifying a user's identity","Determining permissions","Encrypting data","Monitoring servers"], answer: 0 },
+        { technology: "Python", q: "What is authorization?", options: ["Determining what an authenticated user is allowed to access or do","Verifying identity","Hashing passwords","Detecting malware"], answer: 0 },
+        { technology: "Python", q: "What is multi-factor authentication (MFA)?", options: ["Using two or more different authentication factors","Using multiple passwords of the same type","Logging in multiple times","Using multiple usernames"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is phishing?", options: ["A social engineering attack that attempts to trick users into revealing information or taking unsafe actions","A database backup","A network protocol","A type of encryption"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is malware?", options: ["Malicious software","Database software","Monitoring software only","Backup software"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is ransomware?", options: ["Malware that typically encrypts or blocks access to data and demands payment","Antivirus software","A firewall","A password manager"], answer: 0 },
+        { technology: "Networking", q: "What is a firewall?", options: ["A security control that filters network traffic according to rules","A database","An operating system","A password"], answer: 0 },
+        { technology: "Cryptography", q: "What is encryption?", options: ["Converting data into a form intended to be unreadable without the appropriate key","Deleting data","Compressing data only","Copying data"], answer: 0 },
+        { technology: "Cryptography", q: "What is hashing?", options: ["Transforming data into a fixed-size digest using a hash function","Encrypting data with a reversible key","Compressing images","Backing up files"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is SQL injection?", options: ["An attack that manipulates database queries through untrusted input","A database backup method","A type of encryption","A network protocol"], answer: 0 },
+        { technology: "Penetration Testing", q: "Which practice helps prevent SQL injection?", options: ["Parameterized queries","Storing passwords in plaintext","Disabling authentication","Using longer URLs"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is XSS?", options: ["Cross-Site Scripting","Extra Server Security","Cross-System Service","Extended Security Standard"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is the main risk of XSS?", options: ["Injecting malicious scripts into web pages viewed by users","Destroying hard drives","Encrypting databases","Slowing down CPUs"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is CSRF?", options: ["Cross-Site Request Forgery","Cross-System Remote Firewall","Cyber Security Response Framework","Client Server Request Function"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is vulnerability scanning?", options: ["Searching systems for known security weaknesses","Encrypting databases","Creating user accounts","Designing websites"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is penetration testing?", options: ["Authorized security testing that attempts to identify and demonstrate exploitable weaknesses","Unauthorized hacking","Database optimization","Network installation"], answer: 0 },
+        { technology: "Penetration Testing", q: "What is a zero-day vulnerability?", options: ["A vulnerability that is unknown to the party responsible for fixing it or has no available patch at the time of exploitation","A vulnerability fixed years ago","A password attack","A firewall rule"], answer: 0 },
+        { technology: "Linux", q: "What is the principle of least privilege?", options: ["Giving users and systems only the access they need","Giving everyone administrator access","Removing all permissions","Sharing passwords"], answer: 0 },
+        { technology: "Networking", q: "What is a VPN?", options: ["A technology that can create an encrypted tunnel over a network","A database","An antivirus program","A programming language"], answer: 0 },
+        { technology: "Networking", q: "What is a DDoS attack?", options: ["An attack that overwhelms a service with traffic from multiple sources","A password hashing technique","A type of malware scanner","A database query"], answer: 0 },
+        { technology: "Networking", q: "What is an IDS?", options: ["Intrusion Detection System","Internet Data Service","Internal Database Security","Integrated Defense Server"], answer: 0 },
+        { technology: "Networking", q: "What is an IPS?", options: ["Intrusion Prevention System","Internet Protection Service","Internal Protocol Server","Integrated Password System"], answer: 0 },
+        { technology: "Linux", q: "What is a security patch?", options: ["An update that fixes security vulnerabilities or weaknesses","A backup file","A firewall","A new password"], answer: 0 },
+        { technology: "Python", q: "What is incident response?", options: ["The process of detecting, containing, investigating, and recovering from security incidents","Writing frontend code","Creating databases","Designing networks only"], answer: 0 },
+        { technology: "Python", q: "What is a security audit?", options: ["A systematic review of security controls, configurations, and practices","A programming language","A malware type","A network cable"], answer: 0 },
+    ],
+};
+
+// Aliases for goals
+QUESTION_BANK.full_stack = QUESTION_BANK.fullstack;
+
+let state = { step: 1, industry: null, goal: null, technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0 };
 
 function showToast(message, type) {
     const colors = { info: 'bg-inverse-surface', error: 'bg-red-700', success: 'bg-green-700' };
@@ -185,18 +449,17 @@ function showToast(message, type) {
 
 function renderIndustries() {
     var grid = document.getElementById('industry-grid');
-    grid.innerHTML = Object.entries(INDUSTRIES).map(function(entry) {
-        var key = entry[0], ind = entry[1];
-        return '<button data-industry="' + key + '" class="step-card text-left p-5 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
-            '<span class="material-symbols-outlined text-primary text-2xl mb-2">' + ind.icon + '</span>' +
-            '<h3 class="font-bold text-on-surface">' + ind.label + '</h3>' +
-            '<p class="text-xs text-on-surface-variant mt-1">' + ind.desc + '</p>' +
-        '</button>';
+    grid.innerHTML = Object.entries(INDUSTRIES).map(function([key, ind]) {
+        return `<button data-industry="${key}" class="step-card text-left p-5 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">
+            <span class="material-symbols-outlined text-primary text-2xl mb-2">${ind.icon}</span>
+            <h3 class="font-bold text-on-surface">${ind.label}</h3>
+            <p class="text-xs text-on-surface-variant mt-1">${ind.desc}</p>
+        </button>`;
     }).join('');
 
-    grid.querySelectorAll('button').forEach(function(btn) {
+    grid.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', function() {
-            grid.querySelectorAll('button').forEach(function(b) { b.classList.remove('selected'); });
+            grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             state.industry = btn.dataset.industry;
             document.getElementById('next-btn').disabled = false;
@@ -204,96 +467,66 @@ function renderIndustries() {
     });
 }
 
-function renderLanguages() {
-    var grid = document.getElementById('language-grid');
-    var langs = INDUSTRIES[state.industry].languages;
-    grid.innerHTML = langs.map(function(lang) {
-        return '<button data-lang="' + lang + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
-            '<h3 class="font-bold text-on-surface text-sm">' + lang + '</h3>' +
-        '</button>';
+function renderGoals() {
+    var grid = document.getElementById('goal-grid');
+    grid.innerHTML = Object.entries(GOALS).map(function([key, goal]) {
+        return `<button data-goal="${key}" class="step-card text-left p-5 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">
+            <span class="material-symbols-outlined text-primary text-2xl mb-2">${goal.icon}</span>
+            <h3 class="font-bold text-on-surface">${goal.label}</h3>
+            <p class="text-xs text-on-surface-variant mt-1">${goal.desc}</p>
+        </button>`;
     }).join('');
 
-    grid.querySelectorAll('button').forEach(function(btn) {
+    grid.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', function() {
-            btn.classList.toggle('selected');
-            state.languages = Array.from(grid.querySelectorAll('.selected')).map(function(b) { return b.dataset.lang; });
-            document.getElementById('next-btn').disabled = state.languages.length === 0;
+            grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            state.goal = btn.dataset.goal;
+            document.getElementById('next-btn').disabled = false;
         });
     });
 }
 
 function renderTechnologies() {
     var grid = document.getElementById('tech-grid');
-    var techMap = INDUSTRIES[state.industry].technologies;
-    var techs = new Set();
-    state.languages.forEach(function(lang) {
-        (techMap[lang] || []).forEach(function(t) { techs.add(t); });
-    });
+    var techs = GOALS[state.goal].techs;
 
-    grid.innerHTML = Array.from(techs).map(function(tech) {
-        return '<button data-tech="' + tech + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">' +
-            '<h3 class="font-bold text-on-surface text-sm">' + tech + '</h3>' +
-        '</button>';
+    grid.innerHTML = techs.map(function(tech) {
+        return `<button data-tech="${tech}" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all">
+            <h3 class="font-bold text-on-surface text-sm">${tech}</h3>
+        </button>`;
     }).join('');
 
-    grid.querySelectorAll('button').forEach(function(btn) {
+    grid.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', function() {
             btn.classList.toggle('selected');
-            state.technologies = Array.from(grid.querySelectorAll('.selected')).map(function(b) { return b.dataset.tech; });
+            state.technologies = Array.from(grid.querySelectorAll('.selected')).map(b => b.dataset.tech);
             document.getElementById('next-btn').disabled = state.technologies.length === 0;
         });
     });
 }
 
-async function generateQuestions(technologies, industry) {
-    var techList = technologies.join(', ');
-    var prompt = 'You are a technical assessment engine. Generate exactly 30 multiple-choice questions to assess skill level for: ' + techList + '. Industry context: ' + industry + '. Return ONLY a valid JSON array, no markdown, no explanation. Each object must have: "q" (string question), "options" (array of exactly 4 strings), "answer" (0-3 index of correct answer), "technology" (which tech from the list this question covers). Mix questions evenly across all selected technologies. Vary difficulty: some beginner, some intermediate, some advanced. Make wrong answers plausible but clearly incorrect to someone who knows the topic.';
-
-    var response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-
-    if (!response.ok) throw new Error('Gemini API error: ' + response.status);
-    var data = await response.json();
-    var text = data.candidates[0].content.parts[0].text;
-
-    // Strip markdown fences if present
-    text = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    return JSON.parse(text);
-}
-
-async function buildAssessment() {
+function loadHardcodedQuestions() {
     state.questions = [];
     state.answers = {};
+    
+    // Read directly from QUESTION_BANK for the specific selected goal
+    const rawGoal = (state.goal || "frontend").toLowerCase().replace(/\s+/g, "_");
+    const goalQuestions = QUESTION_BANK[rawGoal] || QUESTION_BANK[state.goal] || QUESTION_BANK.frontend || [];
+    
+    // If there are more than 30 questions for a goal, randomly shuffle and slice the top 30
+    const shuffled = [...goalQuestions].sort(() => 0.5 - Math.random());
+    state.questions = shuffled.slice(0, 30);
+    
     renderQuestion();
+}
 
-    // Show loading state
-    var container = document.getElementById('assessment-container');
-    container.innerHTML =
-        '<div class="text-center py-16">' +
-            '<div class="inline-block w-10 h-10 border-4 border-primary-container border-t-transparent rounded-full animate-spin mb-4"></div>' +
-            '<p class="text-on-surface-variant text-sm font-bold">Generating your assessment...</p>' +
-            '<p class="text-on-surface-variant text-xs mt-1">Powered by Gemini AI</p>' +
-        '</div>';
-    document.getElementById('question-counter').textContent = 'Loading...';
-    document.getElementById('score-live').textContent = '';
-
-    try {
-        state.questions = await generateQuestions(state.technologies, state.industry);
-        if (!Array.isArray(state.questions) || state.questions.length === 0) throw new Error('Invalid response');
-    } catch (e) {
-        showToast('Failed to generate questions: ' + e.message, 'error');
-        container.innerHTML = '<div class="text-center py-12"><p class="text-on-surface-variant">Something went wrong. <button onclick="buildAssessment()" class="text-primary font-bold underline">Try again</button></p></div>';
-        return;
-    }
-
-    renderQuestion();
+function escapeHTML(str) {
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function renderQuestion() {
-    var container = document.getElementById('assessment-container');
+    var container = document.getElementById("assessment-container");
     var idx = Object.keys(state.answers).length;
     var total = state.questions.length;
 
@@ -303,48 +536,51 @@ function renderQuestion() {
     }
 
     var q = state.questions[idx];
-    document.getElementById('question-counter').textContent = 'Question ' + (idx + 1) + ' of ' + total;
-    var correctCount = Object.values(state.answers).filter(function(a) { return a.correct; }).length;
-    document.getElementById('score-live').textContent = 'Score: ' + correctCount + '/' + idx;
+    document.getElementById("question-counter").textContent = "Question " + (idx + 1) + " of " + total;
+    var correctCount = Object.values(state.answers).filter(a => a.correct).length;
+    document.getElementById("score-live").textContent = "Score: " + correctCount + "/" + idx;
 
-    container.innerHTML =
-        '<div class="mb-4">' +
-            '<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">' + q.technology + '</span>' +
-            '<h3 class="text-lg font-bold mt-1">' + q.q + '</h3>' +
-        '</div>' +
-        '<div class="flex flex-col gap-3">' +
-            q.options.map(function(opt, i) {
-                return '<button data-idx="' + i + '" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">' + opt + '</button>';
-            }).join('') +
-        '</div>';
+    container.innerHTML = `
+        <div class="mb-4">
+            <span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">${escapeHTML(q.technology)}</span>
+            <h3 class="text-lg font-bold mt-1">${escapeHTML(q.q)}</h3>
+        </div>
+        <div class="flex flex-col gap-3">
+            ${q.options.map((opt, i) => `
+                <button data-idx="${i}" class="step-card text-left p-4 rounded-xl border-2 border-outline-variant/40 bg-surface-container-lowest hover:border-primary-container transition-all text-sm">${escapeHTML(opt)}</button>
+            `).join("")}
+        </div>
+    `;
 
-    container.querySelectorAll('button').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+    container.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", function() {
             var answerIdx = parseInt(btn.dataset.idx);
             state.answers[idx] = { answer: answerIdx, correct: answerIdx === q.answer };
 
-            container.querySelectorAll('button').forEach(function(b, i) {
+            container.querySelectorAll("button").forEach((b, i) => {
                 b.disabled = true;
-                if (i === q.answer) b.classList.add('selected');
+                if (i === q.answer) b.classList.add("selected");
                 else if (i === answerIdx && answerIdx !== q.answer) {
-                    b.style.borderColor = '#ba1a1a';
-                    b.style.backgroundColor = '#ffdad6';
+                    b.style.borderColor = "#ba1a1a";
+                    b.style.backgroundColor = "#ffdad6";
                 }
             });
 
-            setTimeout(function() { renderQuestion(); }, 800);
+            setTimeout(() => renderQuestion(), 800);
         });
     });
 }
 
 function showResults() {
-    document.getElementById('step-4').classList.add('hidden');
-    document.getElementById('step-results').classList.remove('hidden');
-    document.getElementById('nav-buttons').classList.add('hidden');
+    document.getElementById("step-4").classList.add("hidden");
+    document.getElementById("step-results").classList.remove("hidden");
+    document.getElementById("nav-buttons").classList.add("hidden");
+    document.getElementById('wizard-title').textContent = 'Assessment Completed!';
+    document.getElementById('wizard-subtitle').textContent = 'Review your scores and save your profile.';
 
     var techScores = {};
     var techCounts = {};
-    state.questions.forEach(function(q, idx) {
+    state.questions.forEach((q, idx) => {
         if (!techScores[q.technology]) { techScores[q.technology] = 0; techCounts[q.technology] = 0; }
         techCounts[q.technology]++;
         if (state.answers[idx] && state.answers[idx].correct) techScores[q.technology]++;
@@ -352,84 +588,124 @@ function showResults() {
 
     var scores = {};
     var totalCorrect = 0, totalQuestions = 0;
-    Object.keys(techScores).forEach(function(tech) {
+    Object.keys(techScores).forEach(tech => {
         scores[tech] = Math.round((techScores[tech] / techCounts[tech]) * 100);
         totalCorrect += techScores[tech];
         totalQuestions += techCounts[tech];
     });
 
-    var totalScore = Math.round((totalCorrect / totalQuestions) * 100);
+    var totalScore = Math.round((totalCorrect / Math.max(totalQuestions, 1)) * 100);
     state.scores = scores;
     state.totalScore = totalScore;
 
     var container = document.getElementById('step-results');
-    container.innerHTML =
-        '<div class="text-center mb-8">' +
-            '<span class="material-symbols-outlined text-primary text-5xl mb-4">emoji_events</span>' +
-            '<h2 class="text-2xl font-extrabold">Assessment Complete!</h2>' +
-            '<p class="text-on-surface-variant mt-2">Here\'s your skill profile.</p>' +
-        '</div>' +
-        '<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/30 mb-6">' +
-            '<div class="text-center">' +
-                '<span class="text-5xl font-extrabold text-primary">' + totalScore + '%</span>' +
-                '<p class="text-sm text-on-surface-variant mt-1">Overall Score</p>' +
-            '</div>' +
-        '</div>' +
-        '<div class="space-y-3">' +
-            Object.entries(scores).map(function(entry) {
-                var tech = entry[0], score = entry[1];
-                return '<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">' +
-                    '<span class="font-bold text-sm">' + tech + '</span>' +
-                    '<div class="flex items-center gap-3">' +
-                        '<div class="w-24 h-2 bg-outline-variant/30 rounded-full overflow-hidden">' +
-                            '<div class="h-full bg-primary-container rounded-full" style="width: ' + score + '%"></div>' +
-                        '</div>' +
-                        '<span class="text-sm font-bold text-on-surface-variant w-10 text-right">' + score + '%</span>' +
-                    '</div>' +
-                '</div>';
-            }).join('') +
-        '</div>' +
-        '<div class="text-center mt-8">' +
-            '<button onclick="saveProfile()" class="btn-primary" id="save-btn">Save Profile & Continue</button>' +
-        '</div>';
+    container.innerHTML = `
+        <div class="text-center mb-6">
+            <span class="material-symbols-outlined text-primary text-5xl mb-2">emoji_events</span>
+            <h2 class="text-2xl font-extrabold text-on-surface">Quiz Complete!</h2>
+            <p class="text-on-surface-variant text-sm mt-1">Here is your verified skill breakdown.</p>
+        </div>
+        <div class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/30 mb-6 shadow-sm">
+            <div class="text-center">
+                <span class="text-5xl font-extrabold text-primary">${totalScore}%</span>
+                <p class="text-sm font-semibold text-on-surface-variant mt-1">Overall Assessment Score</p>
+            </div>
+        </div>
+        <div class="space-y-3 mb-8">
+            ${Object.entries(scores).map(([tech, score]) => `
+                <div class="flex items-center justify-between p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                    <span class="font-bold text-sm text-on-surface">${tech}</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-32 h-2.5 bg-outline-variant/30 rounded-full overflow-hidden">
+                            <div class="h-full bg-primary-container rounded-full transition-all" style="width: ${score}%"></div>
+                        </div>
+                        <span class="text-sm font-extrabold text-on-surface-variant w-10 text-right">${score}%</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        <div id="save-status-box" class="hidden p-4 rounded-xl bg-surface-container-low border border-primary/30 text-center mb-6">
+            <div class="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
+            <p id="save-status-text" class="text-xs font-bold text-primary uppercase tracking-wider">Saving profile...</p>
+        </div>
+        <div class="text-center">
+            <button onclick="saveProfile()" class="btn-primary inline-flex items-center justify-center gap-2 px-8 py-3.5 text-sm shadow-md" id="save-btn">
+                <span class="material-symbols-outlined text-lg">save</span>
+                Save Profile
+            </button>
+        </div>
+    `;
 }
 
 async function saveProfile() {
     var btn = document.getElementById('save-btn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
+    var statusBox = document.getElementById('save-status-box');
+    var statusText = document.getElementById('save-status-text');
 
-    var result = await supabase.auth.getUser();
-    var user = result.data && result.data.user;
-    if (!user) { window.location.href = 'Student_Login_code.html'; return; }
+    if (btn) btn.classList.add('hidden');
+    if (statusBox) statusBox.classList.remove('hidden');
 
-    var error = (await supabase.from('skill_profiles').upsert({
-        user_id: user.id,
-        industry: state.industry,
-        languages: state.languages,
-        technologies: state.technologies,
-        scores: state.scores,
-        total_score: state.totalScore
-    }, { onConflict: 'user_id' })).error;
+    var session = await getSessionWithRetry();
+    if (!session) { window.location.href = 'login_register.html'; return; }
 
-    if (error) {
-        showToast('Error saving profile: ' + error.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Save Profile & Continue';
-    } else {
-        showToast('Profile saved!', 'success');
-        setTimeout(function() { window.location.href = 'index.html'; }, 1000);
+    try {
+        if (statusText) statusText.textContent = '1/2 Saving your verified profile to Supabase...';
+
+        const profileData = {
+            user_id: session.user.id,
+            industry: state.industry,
+            goal: state.goal,
+            technologies: state.technologies,
+            scores: state.scores,
+            total_score: state.totalScore,
+            completed_at: new Date().toISOString()
+        };
+
+        // ZERO-LATENCY LOCAL CACHE: Save full profile payload immediately
+        localStorage.setItem('mindurr_skill_profile', JSON.stringify(profileData));
+        localStorage.setItem('mindurr_has_profile', 'true');
+
+        // 1. Save profile directly to Supabase skill_profiles
+        let savedProfile = null;
+        try {
+            savedProfile = await saveSkillProfileToSupabase(profileData);
+            if (savedProfile) {
+                localStorage.setItem('mindurr_skill_profile', JSON.stringify(savedProfile));
+            }
+        } catch (dbErr) {
+            console.warn('Direct skill_profiles upsert note:', dbErr);
+        }
+
+        if (statusText) statusText.textContent = '2/2 Analyzing gaps & generating personalized roadmap...';
+
+        // 2. Generate and save personalized 4-phase learning roadmap directly to Supabase
+        try {
+            await generateAndSaveRoadmapToSupabase({
+                ...profileData,
+                id: savedProfile ? savedProfile.id : null
+            });
+        } catch (roadmapErr) {
+            console.warn('Roadmap save note:', roadmapErr);
+        }
+
+        showToast('Profile & Learning Roadmap saved!', 'success');
+        setTimeout(() => window.location.href = 'profile.html', 700);
+    } catch (err) {
+        console.error("Profile save error:", err);
+        localStorage.setItem('mindurr_has_profile', 'true');
+        showToast('Profile ready! Redirecting to dashboard...', 'info');
+        setTimeout(() => window.location.href = 'profile.html', 800);
     }
 }
 
 function goToStep(step) {
-    document.querySelectorAll('.step-content').forEach(function(el) { el.classList.add('hidden'); });
+    document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
     document.getElementById('step-' + step).classList.remove('hidden');
 
     var titles = {
-        1: ['Select Your Industry', 'Choose the field you want to be assessed in.'],
-        2: ['Select Languages', 'Pick the programming languages you know.'],
-        3: ['Select Technologies', 'Choose frameworks and tools you\'re familiar with.'],
+        1: ['What is your motivation?', 'Tell us why you are taking this assessment.'],
+        2: ['Select Your Goal', 'Choose the role you want to focus on.'],
+        3: ['Select Technologies', 'Choose the frameworks and tools you currently know.'],
         4: ['Take Assessment', 'Answer questions about your selected technologies.']
     };
 
@@ -439,44 +715,58 @@ function goToStep(step) {
 
     document.getElementById('prev-btn').classList.toggle('hidden', step === 1);
     document.getElementById('next-btn').disabled = true;
+    document.getElementById('next-btn').textContent = 'Next';
 
-    var nextBtn = document.getElementById('next-btn');
-    if (step === 3) nextBtn.textContent = 'Start Assessment';
-    else if (step === 4) { document.getElementById('nav-buttons').classList.add('hidden'); }
-    else { nextBtn.textContent = 'Next'; document.getElementById('nav-buttons').classList.remove('hidden'); }
+    if (step === 3) {
+        document.getElementById('next-btn').textContent = 'Start Assessment';
+    } else if (step === 4) {
+        document.getElementById('nav-buttons').classList.add('hidden');
+    } else {
+        document.getElementById('nav-buttons').classList.remove('hidden');
+    }
 }
 
 document.getElementById('next-btn').addEventListener('click', function() {
-    if (state.step === 1 && !state.industry) { showToast('Please select an industry', 'error'); return; }
-    if (state.step === 2 && state.languages.length === 0) { showToast('Please select at least one language', 'error'); return; }
+    if (state.step === 1 && !state.industry) { showToast('Please select a motivation', 'error'); return; }
+    if (state.step === 2 && !state.goal) { showToast('Please select a goal', 'error'); return; }
     if (state.step === 3 && state.technologies.length === 0) { showToast('Please select at least one technology', 'error'); return; }
 
-    if (state.step === 1) { state.step = 2; renderLanguages(); }
+    if (state.step === 1) { state.step = 2; renderGoals(); }
     else if (state.step === 2) { state.step = 3; renderTechnologies(); }
-    else if (state.step === 3) { state.step = 4; buildAssessment(); }
+    else if (state.step === 3) { state.step = 4; loadHardcodedQuestions(); }
     goToStep(state.step);
 });
 
 document.getElementById('prev-btn').addEventListener('click', function() {
     state.step--;
     goToStep(state.step);
+    
     if (state.step === 1) document.getElementById('next-btn').disabled = !state.industry;
-    else if (state.step === 2) document.getElementById('next-btn').disabled = state.languages.length === 0;
+    else if (state.step === 2) document.getElementById('next-btn').disabled = !state.goal;
     else if (state.step === 3) document.getElementById('next-btn').disabled = state.technologies.length === 0;
 });
 
 async function init() {
-    if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-        showToast('Set your Supabase + Gemini API keys in assessment.html', 'error');
+    var authInfo = await getAuthenticatedProfile();
+    if (!authInfo) return;
+
+    if (authInfo.role === 'recruiter') {
+        window.location.href = 'recruiter_dashboard.html';
         return;
     }
-    var result = await supabase.auth.getUser();
-    var user = result.data && result.data.user;
-    if (!user) { window.location.href = 'Student_Login_code.html'; return; }
 
-    var profile = (await supabase.from('skill_profiles').select('id').eq('user_id', user.id).single()).data;
-    if (profile) {
-        showToast('You already have a skill profile', 'info');
+    var emailEl = document.getElementById('user-email-header');
+    if (emailEl && authInfo.user) emailEl.textContent = authInfo.user.email;
+
+    try {
+        var profile = (await supabaseClient.from('skill_profiles').select('id, total_score').eq('user_id', authInfo.user.id).maybeSingle()).data;
+        if (profile) {
+            var banner = document.getElementById('existing-profile-banner');
+            if (banner) banner.classList.remove('hidden');
+            localStorage.setItem('mindurr_has_profile', 'true');
+        }
+    } catch (e) {
+        console.warn('Could not check existing profile:', e);
     }
 }
 

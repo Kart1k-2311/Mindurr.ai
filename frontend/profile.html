@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Mindurr | My Profile</title>
+    
+    <!-- Fonts matching Design System -->
+    <link href="https://fonts.googleapis.com/css2?family=geist:wght@100..900&family=inter:wght@100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="vendor/supabase.js"></script>
+    <script>
+        // Injecting the Solaris Design System tokens into Tailwind
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "background": "#fcfae6",
+                        "primary": "#eab308",
+                        "primary-dark": "#dfa806",
+                        "on-surface": "#1c1917",
+                        "on-surface-variant": "#44403c",
+                        "surface": "#fefce8",
+                        "surface-dim": "#fef9c3",
+                        "surface-bright": "#fffdf2",
+                        "surface-container-low": "#f6f4e1",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#fef08a",
+                        "on-primary-container": "#713f12",
+                        "secondary": "#885123",
+                        "tertiary": "#00658e",
+                        "outline": "#a8a29e",
+                        "outline-variant": "#d6d3d1",
+                        "inverse-surface": "#313124"
+                    },
+                    fontFamily: {
+                        "display": ["geist", "sans-serif"],
+                        "body": ["inter", "sans-serif"],
+                        "code": ["JetBrains Mono", "monospace"]
+                    },
+                    boxShadow: {
+                        'sm': '0 2px 8px -1px rgba(66, 32, 6, 0.05)',
+                        'md': '0 8px 24px -4px rgba(66, 32, 6, 0.09)',
+                        'lg': '0 16px 36px -6px rgba(66, 32, 6, 0.16)',
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body { background-color: #fcfae6; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 10px; }
+        
+        .glass-card {
+            background: #fffdf2;
+            border: 1px solid #d6d3d1;
+            box-shadow: 0 2px 8px -1px rgba(66, 32, 6, 0.05);
+            border-radius: 16px;
+        }
+
+        .avatar-circle {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: 2px dashed #a8a29e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fefce8;
+            font-size: 5rem;
+            font-family: 'geist', sans-serif;
+            color: #eab308;
+            font-weight: 800;
+            box-shadow: inset 0 4px 20px rgba(234, 179, 8, 0.15);
+            margin: 0 auto;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: #fef9c3;
+            color: #713f12;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+
+        /* Radar Chart Grid Background */
+        .radar-bg {
+            background-image: 
+                radial-gradient(circle at center, transparent 30%, rgba(168, 162, 158, 0.1) 31%, transparent 32%),
+                radial-gradient(circle at center, transparent 60%, rgba(168, 162, 158, 0.1) 61%, transparent 62%),
+                linear-gradient(to right, transparent 49.5%, rgba(168, 162, 158, 0.2) 50%, transparent 50.5%),
+                linear-gradient(to bottom, transparent 49.5%, rgba(168, 162, 158, 0.2) 50%, transparent 50.5%);
+        }
+    </style>
+</head>
+<body class="font-body text-on-surface antialiased min-h-screen">
+
+<!-- NAVBAR -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-md border-b border-outline-variant/30">
+    <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+        <a class="flex items-center gap-2" href="index.html">
+            <span class="w-8 h-8 rounded-lg bg-[#785a00] flex items-center justify-center p-1.5 shadow-sm">
+                <img alt="Mindurr Logo" src="mindurr_logo.svg" class="w-full h-full object-contain">
+            </span>
+            <span class="font-bold font-display text-lg tracking-tight">Mindurr.ai</span>
+        </a>
+        <div class="flex items-center gap-4">
+            <a href="workspace.html" class="text-xs font-bold uppercase tracking-wider text-[#785a00] hover:text-[#eab308] transition inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full bg-[#fef08a] border border-[#eab308]/30 shadow-sm">
+                <span class="material-symbols-outlined text-sm">route</span>
+                <span>Learning Roadmap</span>
+            </a>
+            <span id="nav-email" class="text-xs font-bold font-code text-on-surface-variant hidden md:block"></span>
+            <button onclick="logout()" class="text-xs font-bold uppercase tracking-widest bg-inverse-surface text-white px-5 py-2 rounded-full hover:bg-on-surface transition">Logout</button>
+        </div>
+    </div>
+</header>
+
+<main class="pt-24 pb-16 min-h-screen max-w-[1200px] mx-auto px-6">
+    
+    <!-- LOADING SPINNER -->
+    <div id="loading-state" class="flex flex-col items-center justify-center h-[60vh]">
+        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-on-surface-variant font-bold">Loading your skill intelligence...</p>
+    </div>
+
+    <!-- PROFILE DASHBOARD (Hidden until loaded) -->
+    <div id="profile-content" class="hidden flex flex-col gap-6">
+        
+        <!-- Top Bar: Greeting & Overall Score -->
+        <div class="glass-card flex items-center justify-between p-6 bg-gradient-to-r from-surface-bright to-surface-dim">
+            <div>
+                <h1 class="text-3xl font-display font-extrabold tracking-tight">Hello, <span id="display-name">Learner</span>!</h1>
+                <p class="text-on-surface-variant text-sm mt-1">Here is your verified skill intelligence profile.</p>
+            </div>
+            <div class="flex items-center justify-center w-16 h-16 rounded-full bg-inverse-surface text-white font-display font-extrabold text-xl shadow-md border-4 border-primary">
+                <span id="overall-score">0</span>
+            </div>
+        </div>
+
+        <!-- ACTION BANNER: PERSONALIZED LEARNING ROADMAP -->
+        <div class="glass-card p-6 bg-gradient-to-r from-surface-bright via-surface-dim to-surface-container-low border-2 border-primary/40 flex flex-col md:flex-row items-center justify-between gap-4 shadow-md">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-on-primary font-bold shadow-sm flex-shrink-0">
+                    <span class="material-symbols-outlined text-2xl">route</span>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-primary tracking-widest uppercase block">Personalized Next Step</span>
+                    <h2 class="font-display font-bold text-lg text-on-surface">Your AI Learning Roadmap is Ready</h2>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Custom timeline with milestones, exercises, and curated resources based on your skill assessment.</p>
+                </div>
+            </div>
+            <a href="workspace.html" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-bold text-xs uppercase tracking-wider hover:bg-[#dfa806] transition-all shadow-sm hover:shadow-md flex-shrink-0">
+                <span>Open Workspace</span>
+                <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </a>
+        </div>
+
+        <!-- Main Wireframe Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            <!-- Left Column: Avatar & Motif -->
+            <div class="md:col-span-4 glass-card p-8 flex flex-col items-center justify-center text-center">
+                <div class="avatar-circle mb-6" id="avatar-initial">?</div>
+                <h3 class="font-display font-bold text-lg mb-2 text-on-surface">Target Industry</h3>
+                <span class="pill mb-4" id="industry-badge">Loading...</span>
+                <p class="text-on-surface-variant text-sm italic font-medium mt-2" id="motivational-phrase">
+                    "Ready to bridge the gap between potential and opportunity."
+                </p>
+            </div>
+
+            <!-- Right Column: User Data -->
+            <div class="md:col-span-8 flex flex-col gap-4">
+                
+                <!-- Name & Email Row -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="glass-card p-5">
+                        <span class="text-[10px] font-bold text-primary tracking-widest uppercase mb-1 block">Full Name</span>
+                        <div class="font-bold text-on-surface truncate" id="card-name">--</div>
+                    </div>
+                    <div class="glass-card p-5">
+                        <span class="text-[10px] font-bold text-primary tracking-widest uppercase mb-1 block">Account Email</span>
+                        <div class="font-code text-sm font-medium text-on-surface-variant truncate" id="card-email">--</div>
+                    </div>
+                </div>
+
+                <!-- Goal & Tech Stack -->
+                <div class="glass-card p-6 flex-1">
+                    <div class="mb-5">
+                        <span class="text-[10px] font-bold text-primary tracking-widest uppercase mb-1 block">Primary Goal</span>
+                        <h2 class="font-display font-bold text-xl capitalize" id="card-goal">--</h2>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-primary tracking-widest uppercase mb-2 block">Verified Stack</span>
+                        <div class="flex flex-wrap gap-2" id="tech-pills">
+                            <!-- Pills injected via JS -->
+                        </div>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-outline-variant/30 flex flex-wrap items-center justify-between gap-3">
+                        <span class="text-xs text-on-surface-variant font-medium">Goal-aligned learning path & milestones:</span>
+                        <a href="workspace.html" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-dim hover:bg-primary-container text-xs font-bold text-on-surface border border-outline-variant/50 transition shadow-sm">
+                            <span class="material-symbols-outlined text-sm text-primary">route</span>
+                            <span>View Goal Roadmap</span>
+                            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Bottom Row: Progress & Telemetry -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Progress Bars -->
+            <div class="glass-card p-6">
+                <h3 class="font-display font-bold text-lg mb-6 border-b border-outline-variant/30 pb-2">Skill Assessment Breakdown</h3>
+                <div id="progress-bars-container" class="space-y-5">
+                    <!-- Progress bars injected via JS -->
+                </div>
+            </div>
+
+            <!-- Telemetry Graph Placeholder -->
+            <div class="glass-card p-6 flex flex-col">
+                <h3 class="font-display font-bold text-lg mb-4 border-b border-outline-variant/30 pb-2">Intelligence Telemetry</h3>
+                <div class="flex-1 relative radar-bg rounded-xl flex items-center justify-center min-h-[250px] border border-outline-variant/20 overflow-hidden">
+                    
+                    <!-- SVG Stylized Radar Data -->
+                    <svg viewBox="0 0 200 200" class="w-full h-full max-h-[220px] opacity-80" style="filter: drop-shadow(0 4px 6px rgba(234, 179, 8, 0.4));">
+                        <polygon id="radar-polygon" points="100,20 180,70 150,160 50,160 20,70" fill="rgba(234, 179, 8, 0.2)" stroke="#eab308" stroke-width="3" stroke-linejoin="round"/>
+                        <!-- Center dot -->
+                        <circle cx="100" cy="100" r="4" fill="#1c1917" />
+                        <!-- Connecting lines -->
+                        <line x1="100" y1="100" x2="100" y2="20" stroke="#a8a29e" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="100" y1="100" x2="180" y2="70" stroke="#a8a29e" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="100" y1="100" x2="150" y2="160" stroke="#a8a29e" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="100" y1="100" x2="50" y2="160" stroke="#a8a29e" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="100" y1="100" x2="20" y2="70" stroke="#a8a29e" stroke-width="1" stroke-dasharray="2,2"/>
+                    </svg>
+
+                    <div class="absolute bottom-3 left-0 right-0 text-center">
+                        <span class="bg-surface-bright px-3 py-1 rounded-full text-[10px] font-code text-on-surface-variant border border-outline-variant/50">Live Model Extrapolation</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</main>
+
+<script src="config.js"></script>
+<script src="roadmap_engine.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+    // 1. Authenticate user using the config.js helper
+    const authInfo = await getAuthenticatedProfile();
+    if (!authInfo) return; // Will redirect if not logged in
+
+    const user = authInfo.user;
+    const name = user.user_metadata?.full_name || "Student";
+    const email = user.email;
+
+    // Populate static user details
+    document.getElementById("display-name").textContent = name.split(' ')[0];
+    document.getElementById("card-name").textContent = name;
+    document.getElementById("card-email").textContent = email;
+    document.getElementById("nav-email").textContent = email;
+    document.getElementById("avatar-initial").textContent = name.charAt(0).toUpperCase();
+
+    // Helper function to render profile details into DOM
+    function renderProfileUI(profile) {
+        if (!profile) return;
+
+        // 1. Overall Score
+        document.getElementById("overall-score").textContent = profile.total_score || 0;
+        
+        // 2. Clean up formatting for industry and goal
+        const rawIndustry = profile.industry || 'technology';
+        const formattedIndustry = rawIndustry.replace('_', ' ');
+        const rawGoal = profile.goal || (profile.scores && profile.scores._goal) || 'general';
+        const formattedGoal = rawGoal.replace('_', ' ');
+        
+        document.getElementById("industry-badge").textContent = formattedIndustry.toUpperCase();
+        document.getElementById("card-goal").textContent = formattedGoal;
+
+        // 3. Dynamic Catchy Phrase based on goal/industry
+        const phrases = {
+            'frontend': "Building pixel-perfect experiences for the web.",
+            'backend': "Architecting robust systems and scalable APIs.",
+            'data_analyst': "Turning raw data into actionable intelligence.",
+            'ai_engineer': "Training models to solve tomorrow's problems.",
+            'cyber_security': "Securing networks and defending the digital frontier."
+        };
+        document.getElementById("motivational-phrase").textContent = `"${phrases[rawIndustry] || `Empowering your journey to master ${formattedGoal}.`}"`;
+
+        // 4. Render Tech Pills
+        const pillsContainer = document.getElementById("tech-pills");
+        const techs = profile.technologies || [];
+        if (techs.length > 0) {
+            pillsContainer.innerHTML = techs.map(tech => 
+                `<span class="px-3 py-1 bg-surface-container-low border border-outline-variant/50 rounded-md text-sm font-semibold text-on-surface shadow-sm">${tech}</span>`
+            ).join('');
+        } else {
+            pillsContainer.innerHTML = `<span class="text-sm text-on-surface-variant">No technologies selected.</span>`;
+        }
+
+        // 5. Render Progress Bars (Filter out internal keys like _goal)
+        const progressContainer = document.getElementById("progress-bars-container");
+        const scores = profile.scores || {};
+        const scoreKeys = Object.keys(scores).filter(k => !k.startsWith('_'));
+        
+        if (scoreKeys.length > 0) {
+            progressContainer.innerHTML = scoreKeys.map(tech => {
+                const score = scores[tech];
+                let barColor = 'bg-primary';
+                if (score < 40) barColor = 'bg-[#ba1a1a]';
+                else if (score > 80) barColor = 'bg-[#885123]';
+                
+                return `
+                <div>
+                    <div class="flex justify-between items-center mb-1.5 text-sm">
+                        <span class="font-bold text-on-surface">${tech}</span>
+                        <span class="font-code font-bold text-on-surface-variant">${score}%</span>
+                    </div>
+                    <div class="w-full bg-outline-variant/30 rounded-full h-2.5 overflow-hidden">
+                        <div class="${barColor} h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: 0%" data-target-width="${score}%"></div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Animate progress bars
+            setTimeout(() => {
+                progressContainer.querySelectorAll('[data-target-width]').forEach(bar => {
+                    bar.style.width = bar.getAttribute('data-target-width');
+                });
+            }, 100);
+
+            // Animate Radar Graph with clean scores
+            const cleanScores = {};
+            scoreKeys.forEach(k => { cleanScores[k] = scores[k]; });
+            animateRadarGraph(cleanScores);
+        } else {
+            progressContainer.innerHTML = `<p class="text-sm text-on-surface-variant italic">Assessment data processing...</p>`;
+        }
+
+        // Reveal content container
+        document.getElementById("loading-state").classList.add("hidden");
+        document.getElementById("profile-content").classList.remove("hidden");
+    }
+
+    try {
+        let profile = null;
+
+        // Step A: Immediate render from local cache if available (zero screen flicker)
+        const cachedRaw = localStorage.getItem('mindurr_skill_profile');
+        if (cachedRaw) {
+            try {
+                const cached = JSON.parse(cachedRaw);
+                if (cached && (!cached.user_id || cached.user_id === user.id)) {
+                    profile = cached;
+                    renderProfileUI(profile);
+                }
+            } catch (e) {}
+        }
+
+        // Step B: Authoritative fetch directly from Supabase skill_profiles
+        try {
+            const { data: dbProfile, error } = await supabaseClient
+                .from('skill_profiles')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (dbProfile) {
+                profile = dbProfile;
+                localStorage.setItem('mindurr_skill_profile', JSON.stringify(dbProfile));
+                localStorage.setItem('mindurr_profile_data', JSON.stringify(dbProfile));
+                localStorage.setItem('mindurr_has_profile', 'true');
+                renderProfileUI(dbProfile);
+            } else if (error) {
+                console.warn("Supabase profile fetch warning:", error);
+            }
+        } catch (dbErr) {
+            console.warn("Supabase query network exception:", dbErr);
+        }
+
+        // Step C: If still no profile in either Supabase or cache, display prompt
+        if (!profile) {
+            document.getElementById("loading-state").innerHTML = `
+                <div class="glass-card p-8 text-center max-w-md mx-auto">
+                    <span class="material-symbols-outlined text-primary text-5xl mb-3">assignment</span>
+                    <h2 class="font-display font-extrabold text-xl mb-2">No Profile Found</h2>
+                    <p class="text-xs text-on-surface-variant mb-6">You haven't completed a skill assessment yet. Take the 4-step assessment to generate your skill intelligence.</p>
+                    <a href="assessment.html" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-bold text-xs uppercase tracking-wider hover:bg-[#dfa806] shadow-sm">
+                        <span>Take Assessment</span>
+                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                    </a>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error("Initialization error:", err);
+        document.getElementById("loading-state").innerHTML = `<p class="text-[#ba1a1a] font-bold">Error loading profile data. Please refresh.</p>`;
+    }
+});
+
+// Helper function to dynamically morph the SVG radar shape based on real score data
+function animateRadarGraph(scores) {
+    const polygon = document.getElementById('radar-polygon');
+    if (!polygon) return;
+    
+    // We have 5 points on the radar. We will map up to 5 scores to these points.
+    const values = Object.values(scores);
+    // Fill with default 50s if not enough scores
+    while(values.length < 5) values.push(50);
+    
+    // Convert scores (0-100) to distances from center (100,100)
+    // Max radius is 80px.
+    const getPoint = (angleDeg, score) => {
+        const radius = 20 + ((score / 100) * 60); // 20px min, 80px max
+        const rad = (angleDeg - 90) * (Math.PI / 180);
+        const x = 100 + (Math.cos(rad) * radius);
+        const y = 100 + (Math.sin(rad) * radius);
+        return `${x},${y}`;
+    };
+
+    // Calculate the 5 vertices
+    const points = [
+        getPoint(0, values[0]),
+        getPoint(72, values[1]),
+        getPoint(144, values[2]),
+        getPoint(216, values[3]),
+        getPoint(288, values[4])
+    ];
+
+    // Start from center to animate outward
+    polygon.setAttribute('points', '100,100 100,100 100,100 100,100 100,100');
+    polygon.style.transition = 'all 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    
+    setTimeout(() => {
+        polygon.setAttribute('points', points.join(' '));
+    }, 200);
+}
+</script>
+</body>
+</html>
