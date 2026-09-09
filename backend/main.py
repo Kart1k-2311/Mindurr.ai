@@ -82,6 +82,40 @@ INDUSTRY_DEFINITIONS: dict[str, dict[str, Any]] = {
 }
 
 
+DEVOPS_ASSESSMENT_QUESTIONS: tuple[tuple[str, tuple[str, ...], int], ...] = (
+    ("What does DevOps combine?", ("A) Development and Operations", "B) Design and Testing", "C) Database and Security", "D) Development and Marketing"), 0),
+    ("What is CI/CD?", ("A) Code Integration/Code Deployment", "B) Continuous Integration/Continuous Delivery or Deployment", "C) Computer Integration/Computer Development", "D) Continuous Inspection/Continuous Debugging"), 1),
+    ("Which tool is commonly used for CI/CD pipelines?", ("A) Jenkins", "B) Photoshop", "C) Figma", "D) MySQL"), 0),
+    ("What is Docker primarily used for?", ("A) Database design", "B) Containerization", "C) UI development", "D) Network routing"), 1),
+    ("What is Kubernetes primarily used for?", ("A) Managing containerized applications", "B) Writing JavaScript", "C) Creating databases", "D) Designing websites"), 0),
+    ("What is Infrastructure as Code (IaC)?", ("A) Writing infrastructure configuration as code", "B) Writing frontend code", "C) Creating documentation", "D) Building hardware"), 0),
+    ("Which tool is commonly associated with Infrastructure as Code?", ("A) Terraform", "B) Figma", "C) React", "D) Excel"), 0),
+    ("What is Ansible commonly used for?", ("A) Configuration management and automation", "B) Image editing", "C) Database querying", "D) UI design"), 0),
+    ("What is a container?", ("A) A lightweight isolated environment for running applications", "B) A physical server", "C) A database table", "D) A network cable"), 0),
+    ("What is a Docker image?", ("A) A template used to create containers", "B) A screenshot", "C) A database backup", "D) A virtual machine"), 0),
+    ("What is version control used for?", ("A) Tracking changes to code and files", "B) Monitoring CPU temperature only", "C) Encrypting databases", "D) Designing interfaces"), 0),
+    ("Which tool is widely used for version control?", ("A) Git", "B) Docker", "C) Kubernetes", "D) Jenkins"), 0),
+    ("What does git pull generally do?", ("A) Uploads local changes", "B) Retrieves and integrates changes from a remote repository", "C) Deletes a repository", "D) Creates a Docker image"), 1),
+    ("What is monitoring in DevOps?", ("A) Observing system health and performance", "B) Writing application code", "C) Designing logos", "D) Creating database tables"), 0),
+    ("Which tool is commonly used for metrics monitoring?", ("A) Prometheus", "B) Git", "C) Docker", "D) Maven"), 0),
+    ("Which tool is commonly used for dashboards and visualization?", ("A) Grafana", "B) Git", "C) Terraform", "D) Ansible"), 0),
+    ("What is logging?", ("A) Recording application and system events", "B) Compressing files", "C) Creating containers", "D) Writing HTML"), 0),
+    ("What is horizontal scaling?", ("A) Adding more instances/servers", "B) Increasing RAM on one server", "C) Removing servers", "D) Reducing CPU usage"), 0),
+    ("What is vertical scaling?", ("A) Adding more servers", "B) Increasing resources of an existing server", "C) Creating more containers", "D) Adding users"), 1),
+    ("What is a load balancer used for?", ("A) Distributing traffic among servers", "B) Encrypting passwords", "C) Building Docker images", "D) Writing code"), 0),
+    ("What is blue-green deployment?", ("A) Running two production environments and switching traffic between them", "B) Deploying only on weekends", "C) Deploying without testing", "D) Deploying to two programming languages"), 0),
+    ("What is a rolling deployment?", ("A) Updating instances gradually rather than all at once", "B) Deleting all servers", "C) Deploying only once", "D) Rebuilding a database"), 0),
+    ("What is a rollback?", ("A) Reverting to a previous version", "B) Deleting Git", "C) Increasing server capacity", "D) Creating a new database"), 0),
+    ("What is a secrets manager used for?", ("A) Securely storing sensitive credentials and secrets", "B) Storing images", "C) Writing code", "D) Monitoring CPU"), 0),
+    ("What is cloud computing?", ("A) On-demand computing resources delivered over a network", "B) Local-only computing", "C) Writing code without a computer", "D) A programming language"), 0),
+    ("Which is a major cloud platform?", ("A) AWS", "B) Git", "C) Linux", "D) Jenkins"), 0),
+    ("What is a health check?", ("A) A mechanism for determining whether a service is functioning correctly", "B) A database query", "C) A Git command", "D) A Docker image"), 0),
+    ("What is immutable infrastructure?", ("A) Replacing infrastructure rather than modifying existing instances in place", "B) Infrastructure that cannot be monitored", "C) Infrastructure without servers", "D) A database system"), 0),
+    ("What is DevOps automation intended to achieve?", ("A) Reduce repetitive manual work and improve consistency", "B) Eliminate testing", "C) Remove version control", "D) Increase manual deployment"), 0),
+    ("What is the primary goal of DevOps?", ("A) Faster and more reliable software delivery through collaboration and automation", "B) Eliminate developers", "C) Only manage databases", "D) Only design websites"), 0),
+)
+
+
 class AssessmentStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -344,6 +378,21 @@ def _normalise_questions(raw_questions: Any, technologies: list[str]) -> list[di
     return normalised
 
 
+def _devops_questions(technologies: list[str]) -> list[dict[str, Any]]:
+    raw_questions = [
+        {
+            "q": question,
+            "options": list(options),
+            "answer": answer,
+            # The supplied quiz is cross-cutting, so distribute it across the
+            # technologies selected by the student for meaningful breakdowns.
+            "technology": technologies[index % len(technologies)],
+        }
+        for index, (question, options, answer) in enumerate(DEVOPS_ASSESSMENT_QUESTIONS)
+    ]
+    return _normalise_questions(raw_questions, technologies)
+
+
 def _public_question(question: dict[str, Any]) -> PublicQuestion:
     return PublicQuestion(
         id=question["id"],
@@ -448,6 +497,9 @@ async def _generate_questions(
     request: Request,
     payload: AssessmentStartRequest,
 ) -> list[dict[str, Any]]:
+    if payload.industry == "devops":
+        return _devops_questions(payload.technologies)
+
     settings = _configured_settings()
     prompt = (
         "You are a technical assessment engine. Generate exactly 30 multiple-choice "
