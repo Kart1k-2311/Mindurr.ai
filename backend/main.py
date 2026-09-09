@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -145,6 +145,15 @@ class AssessmentQuestionsResponse(BaseModel):
     assessment_id: UUID
     status: Literal["in_progress", "submitted"]
     questions: list[PublicQuestion] = Field(min_length=1)
+
+
+class AssessmentQuestionResponse(BaseModel):
+    assessment_id: UUID
+    status: Literal["in_progress", "submitted"]
+    question: PublicQuestion
+    question_index: int = Field(ge=0)
+    total_questions: int = Field(ge=1)
+    has_next: bool
 
 
 class AssessmentResultResponse(BaseModel):
@@ -625,13 +634,14 @@ async def start_assessment(
 
 @app.get(
     "/api/assessments/{assessment_id}/questions",
-    response_model=AssessmentQuestionsResponse,
+    response_model=AssessmentQuestionResponse,
 )
-async def get_assessment_questions(
+async def get_assessment_question(
     assessment_id: UUID,
     request: Request,
     user: CurrentUser,
-) -> AssessmentQuestionsResponse:
+    question_index: int = Query(default=0, ge=0, le=99),
+) -> AssessmentQuestionResponse:
     row = await _get_assessment(request, assessment_id, user["id"])
     if not row:
         raise _not_found()
@@ -642,10 +652,19 @@ async def get_assessment_questions(
     if not isinstance(questions, list) or not questions:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Questions are not ready")
 
-    return AssessmentQuestionsResponse(
+    if question_index >= len(questions):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment question not found",
+        )
+
+    return AssessmentQuestionResponse(
         assessment_id=assessment_id,
         status="submitted" if row.get("status") == "submitted" else "in_progress",
-        questions=[_public_question(question) for question in questions],
+        question=_public_question(questions[question_index]),
+        question_index=question_index,
+        total_questions=len(questions),
+        has_next=question_index < len(questions) - 1,
     )
 
 

@@ -183,7 +183,7 @@ const INDUSTRIES = {
     }
 };
 
-let state = { step: 1, industry: null, goal: null, languages: [], technologies: [], questions: [], answers: {}, scores: {}, totalScore: 0, assessmentId: null, result: null };
+let state = { step: 1, industry: null, goal: null, languages: [], technologies: [], currentQuestion: null, questionIndex: 0, totalQuestions: 0, questionIds: [], hasNext: false, answers: {}, scores: {}, totalScore: 0, assessmentId: null, result: null };
 
 function showToast(message, type) {
     const colors = { info: 'bg-inverse-surface', error: 'bg-red-700', success: 'bg-green-700' };
@@ -345,32 +345,59 @@ function renderTechnologies() {
     });
 }
 
-async function loadAssessmentQuestions() {
-    if (!state.assessmentId) {
-        var started = await apiFetch('/api/assessments', {
-            method: 'POST',
-            body: JSON.stringify({
-                industry: state.industry,
-                goal: state.goal,
-                languages: state.languages,
-                technologies: state.technologies
-            })
-        });
-        state.assessmentId = started.assessment_id;
-    }
+async function loadQuestion(index) {
+    var container = document.getElementById('assessment-container');
+    var nextBtn = document.getElementById('next-btn');
+    state.questionIndex = index;
+    state.currentQuestion = null;
+    nextBtn.disabled = true;
+    nextBtn.textContent = 'Loading...';
+    container.innerHTML =
+        '<div class="text-center py-16">' +
+            '<div class="inline-block w-10 h-10 border-4 border-primary-container border-t-transparent rounded-full animate-spin mb-4"></div>' +
+            '<p class="text-on-surface-variant text-sm font-bold">Loading question...</p>' +
+        '</div>';
 
-    var data = await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/questions');
-    return data.questions;
+    try {
+        if (!state.assessmentId) {
+            var started = await apiFetch('/api/assessments', {
+                method: 'POST',
+                body: JSON.stringify({
+                    industry: state.industry,
+                    goal: state.goal,
+                    languages: state.languages,
+                    technologies: state.technologies
+                })
+            });
+            state.assessmentId = started.assessment_id;
+        }
+
+        var data = await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/questions?question_index=' + index);
+        state.currentQuestion = data.question;
+        state.questionIndex = data.question_index;
+        state.totalQuestions = data.total_questions;
+        state.hasNext = data.has_next;
+        state.questionIds[index] = data.question.id;
+        renderQuestion();
+    } catch (error) {
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Next Question';
+        container.innerHTML = '<div class="text-center py-12"><p class="text-on-surface-variant">Unable to load this question. <button onclick="loadQuestion(' + index + ')" class="text-primary font-bold underline">Try again</button></p></div>';
+        showToast('Failed to load question: ' + error.message, 'error');
+    }
 }
 
 async function buildAssessment() {
-    state.questions = [];
+    state.currentQuestion = null;
+    state.questionIndex = 0;
+    state.totalQuestions = 0;
+    state.questionIds = [];
+    state.hasNext = false;
     state.answers = {};
     state.result = null;
     document.getElementById('step-4').classList.remove('hidden');
     document.getElementById('step-results').classList.add('hidden');
 
-    // Show loading state
     var container = document.getElementById('assessment-container');
     container.innerHTML =
         '<div class="text-center py-16">' +
@@ -381,31 +408,18 @@ async function buildAssessment() {
     document.getElementById('question-counter').textContent = 'Loading...';
     document.getElementById('score-live').textContent = '';
 
-    try {
-        state.questions = await loadAssessmentQuestions();
-        if (!Array.isArray(state.questions) || state.questions.length === 0) throw new Error('Invalid response');
-    } catch (e) {
-        showToast('Failed to generate questions: ' + e.message, 'error');
-        container.innerHTML = '<div class="text-center py-12"><p class="text-on-surface-variant">Something went wrong. <button onclick="buildAssessment()" class="text-primary font-bold underline">Try again</button></p></div>';
-        return;
-    }
-
-    renderQuestion();
+    await loadQuestion(0);
 }
 
 function renderQuestion() {
     var container = document.getElementById('assessment-container');
-    var idx = Object.keys(state.answers).length;
-    var total = state.questions.length;
-
-    if (idx >= total) {
-        showResults();
-        return;
-    }
-
-    var q = state.questions[idx];
+    var nextBtn = document.getElementById('next-btn');
+    var idx = state.questionIndex;
+    var total = state.totalQuestions;
+    var q = state.currentQuestion;
+    if (!q) return;
     document.getElementById('question-counter').textContent = 'Question ' + (idx + 1) + ' of ' + total;
-    document.getElementById('score-live').textContent = 'Score: --';
+    document.getElementById('score-live').textContent = 'Answered: ' + Object.keys(state.answers).length + '/' + total;
 
     container.innerHTML =
         '<div class="mb-4">' +
@@ -428,10 +442,12 @@ function renderQuestion() {
                 b.disabled = true;
                 if (parseInt(b.dataset.idx) === answerIdx) b.classList.add('selected');
             });
-
-            setTimeout(function() { renderQuestion(); }, 800);
+            nextBtn.disabled = false;
+            nextBtn.textContent = state.hasNext ? 'Next Question' : 'Submit Answers';
         });
     });
+    nextBtn.disabled = !state.answers[idx];
+    nextBtn.textContent = state.hasNext ? 'Next Question' : 'Submit Answers';
 }
 
 function showResults() {
@@ -448,7 +464,7 @@ function showResults() {
         '</div>' +
         '<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/30 mb-6">' +
             '<div class="text-center">' +
-                '<span class="text-3xl font-extrabold text-primary">' + state.questions.length + ' questions</span>' +
+                '<span class="text-3xl font-extrabold text-primary">' + state.totalQuestions + ' questions</span>' +
                 '<p class="text-sm text-on-surface-variant mt-1">Ready for server-side scoring</p>' +
             '</div>' +
         '</div>' +
@@ -503,8 +519,8 @@ async function submitAssessment() {
     btn.textContent = 'Submitting...';
 
     try {
-        var answers = state.questions.map(function(question, index) {
-            return { question_id: question.id, answer: state.answers[index].answer };
+        var answers = state.questionIds.map(function(questionId, index) {
+            return { question_id: questionId, answer: state.answers[index].answer };
         });
         await apiFetch('/api/assessments/' + encodeURIComponent(state.assessmentId) + '/answers', {
             method: 'POST',
@@ -539,16 +555,32 @@ function goToStep(step) {
     document.getElementById('wizard-subtitle').textContent = titles[step][1];
     document.getElementById('progress-bar').style.width = (step * 25) + '%';
 
-    document.getElementById('prev-btn').classList.toggle('hidden', step === 1);
-    document.getElementById('next-btn').disabled = true;
-
     var nextBtn = document.getElementById('next-btn');
-    if (step === 3) nextBtn.textContent = 'Start Assessment';
-    else if (step === 4) { document.getElementById('nav-buttons').classList.add('hidden'); }
-    else { nextBtn.textContent = 'Next'; document.getElementById('nav-buttons').classList.remove('hidden'); }
+    var prevBtn = document.getElementById('prev-btn');
+    prevBtn.classList.toggle('hidden', step === 1 || step === 4);
+    nextBtn.disabled = true;
+    if (step === 3) {
+        nextBtn.textContent = 'Start Assessment';
+        document.getElementById('nav-buttons').classList.remove('hidden');
+    } else if (step === 4) {
+        nextBtn.textContent = 'Next Question';
+        document.getElementById('nav-buttons').classList.remove('hidden');
+    } else {
+        nextBtn.textContent = 'Next';
+        document.getElementById('nav-buttons').classList.remove('hidden');
+    }
 }
 
 document.getElementById('next-btn').addEventListener('click', function() {
+    if (state.step === 4) {
+        if (!state.answers[state.questionIndex]) {
+            showToast('Please select an answer first', 'error');
+            return;
+        }
+        if (state.hasNext) loadQuestion(state.questionIndex + 1);
+        else showResults();
+        return;
+    }
     if (state.step === 1 && !state.industry) { showToast('Please select an industry', 'error'); return; }
     if (state.step === 1 && !state.goal) { showToast('Please select an assessment goal', 'error'); return; }
     if (state.step === 2 && state.languages.length === 0) { showToast('Please select at least one language', 'error'); return; }
