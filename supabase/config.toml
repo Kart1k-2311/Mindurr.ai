@@ -1,0 +1,14 @@
+[project]
+id = "xrxstghlyyergkuvqlaw"
+
+[auth]
+enable_confirmations = false
+
+[auth.email]
+enable_confirmations = false
+
+[auth.sms]
+enable_confirmations = false
+
+[functions.generate-questions]
+verify_jwt = true

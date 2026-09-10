@@ -4,6 +4,7 @@ anyio==4.15.0
 click==8.5.0
 fastapi==0.141.1
 h11==0.16.0
+httpx==0.28.1
 idna==3.19
 pydantic==2.13.5
 pydantic_core==2.46.5
